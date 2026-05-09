@@ -1,0 +1,14 @@
+stages:
+  - build
+
+build:
+  stage: build
+  script:
+    - echo "=== 大麦网票务系统 CI构建 ==="
+    - echo "构建后端..."
+    - cd damai-ticket && mvn clean package -DskipTests
+    - echo "后端构建完成"
+    - echo "构建前端..."
+    - cd ../damai-ticket-frontend && npm install && npm run build
+    - echo "前端构建完成"
+    - echo "=== 构建成功 ==="
