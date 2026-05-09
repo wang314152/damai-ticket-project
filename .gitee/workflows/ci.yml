@@ -3,27 +3,30 @@
 
 name: CI/CD Pipeline
 
-# 触发条件：master分支有代码推送时执行
+# 触发条件
 on:
   push:
-    branches:
-      - master
+    branches: [master, main]
   pull_request:
-    branches:
-      - master
+    branches: [master, main]
 
-# 定义任务
+# 全局配置
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
 stages:
-  - build-backend
-  - build-frontend
+  - backend-build
+  - frontend-build
   - test
   - report
 
-# ===================== 后端构建和测试 =====================
-build-backend:
-  stage: build-backend
-  image: maven:3.8-openjdk-8
+# ===================== 后端构建 =====================
+backend-build:
+  stage: backend-build
+  tags:
+    - gitee-ubuntu
   script:
+    - echo "开始构建后端..."
     - cd damai-ticket
     - mvn clean package -DskipTests
     - echo "后端构建完成"
@@ -33,12 +36,15 @@ build-backend:
     expire_in: 1 day
   only:
     - master
+    - main
 
 # ===================== 前端构建 =====================
-build-frontend:
-  stage: build-frontend
-  image: node:18
+frontend-build:
+  stage: frontend-build
+  tags:
+    - gitee-ubuntu
   script:
+    - echo "开始构建前端..."
     - cd damai-ticket-frontend
     - npm install
     - npm run build
@@ -49,23 +55,29 @@ build-frontend:
     expire_in: 1 day
   only:
     - master
+    - main
 
-# ===================== 单元测试 =====================
+# ===================== 测试 =====================
 test:
   stage: test
-  image: maven:3.8-openjdk-8
+  tags:
+    - gitee-ubuntu
   script:
+    - echo "运行测试..."
     - cd damai-ticket
-    - mvn test || echo "测试完成"
+    - mvn test || echo "测试执行完成"
   only:
     - master
+    - main
 
 # ===================== 构建报告 =====================
-build-report:
+report:
   stage: report
+  tags:
+    - gitee-ubuntu
   script:
     - echo "========================================"
-    - echo "       大麦网票务系统 - 构建报告"
+    - echo "  大麦网票务系统 - 构建报告"
     - echo "========================================"
     - echo "构建时间: $(date '+%Y-%m-%d %H:%M:%S')"
     - echo "分支: master"
@@ -76,3 +88,4 @@ build-report:
     - echo "========================================"
   only:
     - master
+    - main
