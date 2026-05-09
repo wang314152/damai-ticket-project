@@ -5,7 +5,7 @@ on:
     branches: [ master, main ]
   pull_request:
     branches: [ master, main ]
-  workflow_dispatch:  # 支持手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # ========== Maven 缓存加速 ==========
+      # Maven 缓存加速
       - name: Cache Maven packages
         uses: actions/cache@v3
         with:
@@ -34,8 +34,9 @@ jobs:
         run: |
           cd damai-ticket
           mvn clean package -DskipTests -q
+          echo "✅ 后端构建完成"
 
-      # ========== npm 缓存加速 ==========
+      # npm 缓存加速
       - name: Cache npm packages
         uses: actions/cache@v3
         with:
@@ -54,54 +55,13 @@ jobs:
           cd damai-ticket-frontend
           npm install --registry https://registry.npmmirror.com
           npm run build
-
-      - name: Upload Frontend Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: damai-ticket-frontend/dist
-          retention-days: 7
+          echo "✅ 前端构建完成"
 
       - name: Build Success Report
         run: |
           echo "=================================="
-          echo "  大麦网票务系统 - 构建成功"
+          echo "  大麦网票务系统 - 构建成功 ✅"
           echo "=================================="
-          echo "后端构建: 成功"
-          echo "前端构建: 成功"
+          echo "后端: Spring Boot 2.7.18 ✅"
+          echo "前端: Vue 3 + Vite ✅"
           echo "=================================="
-
-  # ========== 部署到 GitHub Pages ==========
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
-    
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Download Frontend Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: ./dist
-
-      - name: Upload to GitHub Pages
-        id: deployment
-        uses: actions/upload-pages-artifact@v3
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
