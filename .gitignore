@@ -1,0 +1,35 @@
+# Maven
+damai-ticket/target/
+damai-ticket/*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Node
+damai-ticket-frontend/node_modules/
+damai-ticket-frontend/dist/
+damai-ticket-frontend/*.local
+node_modules/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (用户上传的文件不应该被提交)
+uploads/*.jpg
+uploads/*.png
+uploads/*.jpeg
+uploads/*.webp
+
+# Temporary files
+*.tmp
+*.bak
