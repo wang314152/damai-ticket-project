@@ -1,99 +1,15 @@
-# Gitee CI/CD 流水线配置
-# 软件集成开发课程 - 大麦网票务系统
-
-name: CI/CD Pipeline
-
-# 触发条件
-on:
-  push:
-    branches: [master, main]
-  pull_request:
-    branches: [master, main]
-
-# 全局变量
-variables:
-  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
-
 stages:
-  - backend-build
-  - frontend-build
-  - test
-  - report
+  - build
 
-# ===================== 后端构建 =====================
-backend-build:
-  stage: backend-build
+build:
+  stage: build
   tags:
     - gitee-ubuntu
   script:
-    - echo "当前目录: $(pwd)"
-    - echo "列出文件:"
+    - echo "=== 大麦网票务系统 CI ==="
     - ls -la
-    - echo "进入后端目录..."
-    - cd $CI_PROJECT_DIR/damai-ticket
-    - echo "后端目录内容:"
-    - ls -la
-    - echo "开始Maven构建..."
-    - mvn clean package -DskipTests
-    - echo "后端构建完成"
-  artifacts:
-    paths:
-      - damai-ticket/target/*.jar
-    expire_in: 1 day
-  only:
-    - master
-    - main
-
-# ===================== 前端构建 =====================
-frontend-build:
-  stage: frontend-build
-  tags:
-    - gitee-ubuntu
-  script:
-    - echo "当前目录: $(pwd)"
-    - cd $CI_PROJECT_DIR/damai-ticket-frontend
-    - echo "开始安装依赖..."
-    - npm install
-    - echo "开始构建..."
-    - npm run build
-    - echo "前端构建完成"
-  artifacts:
-    paths:
-      - damai-ticket-frontend/dist
-    expire_in: 1 day
-  only:
-    - master
-    - main
-
-# ===================== 测试 =====================
-test:
-  stage: test
-  tags:
-    - gitee-ubuntu
-  script:
-    - echo "运行测试..."
-    - cd $CI_PROJECT_DIR/damai-ticket
-    - mvn test || echo "测试执行完成"
-  only:
-    - master
-    - main
-
-# ===================== 构建报告 =====================
-report:
-  stage: report
-  tags:
-    - gitee-ubuntu
-  script:
-    - echo "========================================"
-    - echo "  大麦网票务系统 - 构建报告"
-    - echo "========================================"
-    - echo "构建时间: $(date '+%Y-%m-%d %H:%M:%S')"
-    - echo "分支: master"
-    - echo "后端构建: 成功"
-    - echo "前端构建: 成功"
-    - echo "========================================"
-    - echo "CI/CD 流水线执行完成"
-    - echo "========================================"
-  only:
-    - master
-    - main
+    - echo "构建后端..."
+    - cd damai-ticket && mvn clean package -DskipTests
+    - echo "构建前端..."
+    - cd ../damai-ticket-frontend && npm install && npm run build
+    - echo "=== 构建完成 ==="
