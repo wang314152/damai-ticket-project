@@ -4,38 +4,35 @@
 stages:
   - build
 
-# 缓存配置
+# 全局缓存配置
 cache:
-  key: ${CI_COMMIT_REF_NAME}
+  key: dependency
   paths:
     - .m2/repository
-    - damai-ticket-frontend/node_modules/
+    - node_modules
 
 # Java 后端构建
 build-backend:
   stage: build
+  cache:
+    - .m2/repository
   script:
-    - echo "=== 大麦网票务系统 CI构建 ==="
-    - echo "当前目录: $(pwd)"
+    - echo "=== 构建后端 ==="
     - ls -la
-    - echo "构建后端..."
-    - cd damai-ticket
-    - mvn clean package -DskipTests
-    - echo "后端构建完成 ✅"
+    - cd damai-ticket && mvn clean package -DskipTests && cd ..
+    - echo "后端构建成功"
   only:
     - master
-    - main
 
 # Node.js 前端构建
 build-frontend:
   stage: build
   script:
-    - echo "构建前端..."
+    - echo "=== 构建前端 ==="
     - cd damai-ticket-frontend
     - npm config set registry https://registry.npmmirror.com
     - npm install
     - npm run build
-    - echo "前端构建完成 ✅"
+    - echo "前端构建成功"
   only:
     - master
-    - main
