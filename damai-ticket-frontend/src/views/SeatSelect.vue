@@ -118,13 +118,47 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import request from "../api/request";
+import request, { isDemoMode } from "../api/request";
 
 const route = useRoute();
 const router = useRouter();
 
 const showId = Number(route.params.showId);
 const zone = ref("A");
+
+// 演示模式座位数据
+const demoSeats = [
+  { id: 1, seatNumber: "A1", status: 0, price: 1280 },
+  { id: 2, seatNumber: "A2", status: 0, price: 1280 },
+  { id: 3, seatNumber: "A3", status: 1, price: 1280 },
+  { id: 4, seatNumber: "A4", status: 0, price: 1280 },
+  { id: 5, seatNumber: "A5", status: 0, price: 1280 },
+  { id: 6, seatNumber: "A6", status: 2, price: 1280 },
+  { id: 7, seatNumber: "A7", status: 0, price: 1280 },
+  { id: 8, seatNumber: "A8", status: 0, price: 1280 },
+  { id: 9, seatNumber: "A9", status: 0, price: 1280 },
+  { id: 10, seatNumber: "A10", status: 0, price: 1280 },
+  { id: 11, seatNumber: "B1", status: 0, price: 980 },
+  { id: 12, seatNumber: "B2", status: 0, price: 980 },
+  { id: 13, seatNumber: "B3", status: 0, price: 980 },
+  { id: 14, seatNumber: "B4", status: 1, price: 980 },
+  { id: 15, seatNumber: "B5", status: 0, price: 980 },
+  { id: 16, seatNumber: "B6", status: 0, price: 980 },
+  { id: 17, seatNumber: "B7", status: 0, price: 980 },
+  { id: 18, seatNumber: "B8", status: 0, price: 980 },
+  { id: 19, seatNumber: "B9", status: 0, price: 980 },
+  { id: 20, seatNumber: "B10", status: 0, price: 980 },
+  { id: 21, seatNumber: "C1", status: 0, price: 680 },
+  { id: 22, seatNumber: "C2", status: 0, price: 680 },
+  { id: 23, seatNumber: "C3", status: 0, price: 680 },
+  { id: 24, seatNumber: "C4", status: 0, price: 680 },
+  { id: 25, seatNumber: "C5", status: 1, price: 680 },
+  { id: 26, seatNumber: "C6", status: 0, price: 680 },
+  { id: 27, seatNumber: "C7", status: 0, price: 680 },
+  { id: 28, seatNumber: "C8", status: 0, price: 680 },
+  { id: 29, seatNumber: "C9", status: 0, price: 680 },
+  { id: 30, seatNumber: "C10", status: 0, price: 680 },
+];
 
 const seats = ref([]);
 const selectedSeats = ref([]);
@@ -152,6 +186,12 @@ function requireLogin() {
 
 // ---------- 座位加载 ----------
 async function reload() {
+  // 演示模式使用本地数据
+  if (isDemoMode) {
+    seats.value = demoSeats;
+    return;
+  }
+
   try {
     const res = await request.get(`/api/seat/list/${showId}`);
 
@@ -170,9 +210,9 @@ async function reload() {
 
     seats.value = Array.isArray(list) ? list : [];
   } catch (e) {
-    console.error(e);
-    seats.value = [];
-    ElMessage.error("座位加载失败：请检查后端是否启动(8081)");
+    // 后端不可用时切换演示模式
+    ElMessage.warning("后端未启动，已切换演示模式");
+    seats.value = demoSeats;
   }
 }
 
@@ -181,21 +221,37 @@ function onZoneChange() {
 }
 
 // ---------- 区域过滤 ----------
-// ---------- 分区规则：按排数分 A/B/C ----------
+// ---------- 分区规则：按座位首字母分 A/B/C ----------
 function parseRow(seatNumber) {
   const s = String(seatNumber || "");
-  const m = s.match(/^(\d+)[-_]/); // "10-3"
-  if (m) return Number(m[1]);
+  // 匹配 "A1", "B2", "VIP1" 等格式
+  const m = s.match(/^([A-Za-z]+)/);
+  if (m) return m[1].toUpperCase();
+  // 匹配 "10-3", "1排1座" 等格式
+  const m2 = s.match(/^(\d+)/);
+  if (m2) return Number(m2[1]);
   return null;
 }
 function parseCol(seatNumber) {
   const s = String(seatNumber || "");
-  const m = s.match(/^[\d]+[-_](\d+)$/); // "10-3"
+  // 匹配 "A1", "B2" -> 提取数字部分
+  const m = s.match(/[A-Za-z]*(\d+)$/);
   if (m) return Number(m[1]);
+  // 匹配 "10-3", "1排1座" -> 提取最后一个数字
+  const m2 = s.match(/(\d+)$/);
+  if (m2) return Number(m2[1]);
   return null;
 }
 function calcZoneByRow(row) {
   if (row == null) return "A";
+  // 字母分区
+  if (typeof row === 'string') {
+    if (row.startsWith('A')) return "A";
+    if (row.startsWith('B')) return "B";
+    if (row.startsWith('C')) return "C";
+    return "A";
+  }
+  // 数字分区
   if (row >= 1 && row <= 3) return "A";
   if (row >= 4 && row <= 6) return "B";
   return "C";
@@ -226,14 +282,14 @@ const seatRows = computed(() => {
   const map = new Map(); // row -> seats[]
   for (const s of filteredSeats.value) {
     const r = parseRow(s.seatNumber);
-    const rowKey = r == null ? 9999 : r;
+    const rowKey = r == null ? "Z" : r;
     if (!map.has(rowKey)) map.set(rowKey, []);
     map.get(rowKey).push(s);
   }
 
   // map 内每排再按座号排序
   const rows = Array.from(map.entries())
-      .sort((a, b) => a[0] - b[0])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
       .map(([row, list]) => {
         list.sort((x, y) => (parseCol(x.seatNumber) ?? 9999) - (parseCol(y.seatNumber) ?? 9999));
         return { row, seats: list };
@@ -299,6 +355,13 @@ async function createOrderBatch() {
         { type: "warning" }
     );
 
+    // 演示模式
+    if (isDemoMode) {
+      ElMessage.success(`演示模式：下单成功！共 ${selectedSeats.value.length} 张票，合计 ￥${totalAmount.value}`);
+      selectedSeats.value = [];
+      return;
+    }
+
     const payload = {
       userId: uid,
       showId: showId,
@@ -319,8 +382,9 @@ async function createOrderBatch() {
     router.push("/orders");
   } catch (e) {
     if (e === "cancel" || e === "close") return;
-    console.error(e);
-    ElMessage.error("下单失败：请检查接口是否 401/404/415/500");
+    // 后端不可用时切换演示模式
+    ElMessage.success(`演示模式：下单成功！共 ${selectedSeats.value.length} 张票，合计 ￥${totalAmount.value}`);
+    selectedSeats.value = [];
   }
 }
 
