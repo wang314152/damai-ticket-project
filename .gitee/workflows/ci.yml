@@ -9,7 +9,6 @@ cache:
   key: ${CI_COMMIT_REF_NAME}
   paths:
     - .m2/repository
-    - node_modules/
     - damai-ticket-frontend/node_modules/
 
 # Java 后端构建
@@ -18,8 +17,11 @@ build-backend:
   image: maven:3.9-openjdk-17
   script:
     - echo "=== 大麦网票务系统 CI构建 ==="
+    - echo "当前目录: $(pwd)"
+    - echo "列出文件:"
+    - ls -la
     - echo "构建后端..."
-    - cd damai-ticket
+    - cd ${CI_PROJECT_DIR}/damai-ticket
     - mvn clean package -DskipTests -q
     - echo "后端构建完成 ✅"
   artifacts:
@@ -36,7 +38,7 @@ build-frontend:
   image: node:22
   script:
     - echo "构建前端..."
-    - cd damai-ticket-frontend
+    - cd ${CI_PROJECT_DIR}/damai-ticket-frontend
     # 使用淘宝镜像加速
     - npm config set registry https://registry.npmmirror.com
     - npm install
