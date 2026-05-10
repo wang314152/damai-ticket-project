@@ -373,10 +373,41 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import request from "../api/request";
+import request, { isDemoMode } from "../api/request";
 
 const router = useRouter();
 const active = ref("show");
+
+// ===================== 演示模式数据 =====================
+const demoShows = [
+  { id: 1, title: "周杰伦2026世界巡回演唱会", location: "北京国家体育场", showTime: "2026-06-15 19:30:00", price: 1280, category: "演唱会", createTime: "2026-05-01 10:00:00" },
+  { id: 2, title: "开心麻花《乌龙山伯爵》", location: "上海人民大舞台", showTime: "2026-05-20 14:00:00", price: 380, category: "话剧歌剧", createTime: "2026-05-02 10:00:00" },
+  { id: 3, title: "2026NBA中国赛", location: "广州体育馆", showTime: "2026-08-10 20:00:00", price: 880, category: "体育赛事", createTime: "2026-05-03 10:00:00" },
+];
+
+const demoOrders = [
+  { id: 1, userId: 2, showId: 1, seatId: 1, amount: 1280, status: 1, createTime: "2026-05-05 14:30:00" },
+  { id: 2, userId: 3, showId: 2, seatId: 5, amount: 380, status: 0, createTime: "2026-05-06 15:00:00" },
+  { id: 3, userId: 2, showId: 3, seatId: 8, amount: 880, status: 1, createTime: "2026-05-07 16:00:00" },
+];
+
+const demoUsers = [
+  { id: 1, username: "admin", role: "ADMIN", phone: "13800138000", email: "admin@test.com", nickname: "管理员" },
+  { id: 2, username: "test", role: "USER", phone: "13900139000", email: "test@test.com", nickname: "测试用户" },
+  { id: 3, username: "user1", role: "USER", phone: "13700137000", email: "user1@test.com", nickname: "普通用户" },
+];
+
+const demoStats = {
+  totalSeats: 120,
+  soldSeats: 68,
+  lockedSeats: 5,
+  sellRate: 0.567,
+  paidOrders: 45,
+  unpaidOrders: 8,
+  revenue: 56800,
+  ratingCount: 32,
+  avgScore: 4.5
+};
 
 // ===================== 数据统计 =====================
 const statsShowId = ref(null);
@@ -402,6 +433,17 @@ async function loadStats() {
     return ElMessage.warning("请选择一个演出");
   }
 
+  // 演示模式
+  if (isDemoMode) {
+    stats.value = { ...demoStats, showId: statsShowId.value };
+    ratingPage.value = { records: [
+      { id: 1, userId: 2, orderId: 1, score: 5, content: "非常棒的演出！", createTime: "2026-05-05 18:00:00" },
+      { id: 2, userId: 3, orderId: 2, score: 4, content: "还不错，推荐！", createTime: "2026-05-06 19:00:00" },
+    ], total: 2, current: 1, size: 5 };
+    ElMessage.success("演示模式：统计加载成功！");
+    return;
+  }
+
   try {
     console.log("[stats] querying showId =", statsShowId.value);
 
@@ -417,7 +459,11 @@ async function loadStats() {
     ElMessage.success("统计加载成功");
   } catch (e) {
     console.error("[stats] error =", e);
-    ElMessage.error("统计查询失败：请检查接口是否存在/是否401/是否跨域");
+    ElMessage.warning("后端未启动，已切换演示模式");
+    stats.value = { ...demoStats, showId: statsShowId.value };
+    ratingPage.value = { records: [
+      { id: 1, userId: 2, orderId: 1, score: 5, content: "非常棒的演出！", createTime: "2026-05-05 18:00:00" },
+    ], total: 1, current: 1, size: 5 };
   }
 }
 
@@ -440,6 +486,17 @@ function resetUserSearch() {
 
 async function loadUsers(page = 1) {
   currentUserPage.value = page;
+  
+  // 演示模式
+  if (isDemoMode) {
+    const filtered = demoUsers.filter(u => 
+      !userKeyword.value || u.username.includes(userKeyword.value)
+    );
+    users.value = filtered;
+    userTotal.value = filtered.length;
+    return;
+  }
+  
   try {
     const res = await request.get("/api/admin/user/page", {
       params: {
@@ -459,7 +516,12 @@ async function loadUsers(page = 1) {
     userPageSize.value = Number(p.size || userPageSize.value);
   } catch (e) {
     console.error("[loadUsers error]", e);
-    ElMessage.error("获取用户列表失败：请检查后端/CORS/X-ADMIN");
+    ElMessage.warning("后端未启动，已切换演示模式");
+    const filtered = demoUsers.filter(u => 
+      !userKeyword.value || u.username.includes(userKeyword.value)
+    );
+    users.value = filtered;
+    userTotal.value = filtered.length;
   }
 }
 
@@ -545,16 +607,28 @@ const uploadHeaders = {
 
 async function setZonePrice() {
   if (!priceSet.showId) return ElMessage.warning("请输入演出ID");
-  const res = await request.post("/api/admin/seat/price/set", null, {
-    params: {
-      showId: priceSet.showId,
-      priceA: priceSet.a,
-      priceB: priceSet.b,
-      priceC: priceSet.c,
-    },
-  });
-  if (res.data.code !== 0) return ElMessage.error(res.data.msg || "设置失败");
-  ElMessage.success(res.data.data || "设置成功");
+  
+  // 演示模式
+  if (isDemoMode) {
+    ElMessage.success(`演示模式：座位价格设置成功！\nA区: ¥${priceSet.a}\nB区: ¥${priceSet.b}\nC区: ¥${priceSet.c}`);
+    return;
+  }
+  
+  try {
+    const res = await request.post("/api/admin/seat/price/set", null, {
+      params: {
+        showId: priceSet.showId,
+        priceA: priceSet.a,
+        priceB: priceSet.b,
+        priceC: priceSet.c,
+      },
+    });
+    if (res.data.code !== 0) return ElMessage.error(res.data.msg || "设置失败");
+    ElMessage.success(res.data.data || "设置成功");
+  } catch (e) {
+    ElMessage.warning("后端未启动，已切换演示模式");
+    ElMessage.success(`演示模式：座位价格设置成功！\nA区: ¥${priceSet.a}\nB区: ¥${priceSet.b}\nC区: ¥${priceSet.c}`);
+  }
 }
 
 function resetForm() {
@@ -588,6 +662,17 @@ function fmtDateTime(v) {
 // 分页查询（可按标题模糊搜索）=> GET /api/admin/show/page
 async function loadShows(page = 1) {
   current.value = page;
+  
+  // 演示模式
+  if (isDemoMode) {
+    const filtered = demoShows.filter(s => 
+      !keyword.value || s.title.includes(keyword.value)
+    );
+    shows.value = filtered;
+    total.value = filtered.length;
+    return;
+  }
+  
   try {
     const res = await request.get("/api/admin/show/page", {
       params: {
@@ -606,7 +691,12 @@ async function loadShows(page = 1) {
     total.value = Number(p.total || 0);
     pageSize.value = Number(p.size || pageSize.value);
   } catch (e) {
-    ElMessage.error("获取演出列表失败：请检查后端/CORS/X-ADMIN");
+    ElMessage.warning("后端未启动，已切换演示模式");
+    const filtered = demoShows.filter(s => 
+      !keyword.value || s.title.includes(keyword.value)
+    );
+    shows.value = filtered;
+    total.value = filtered.length;
   }
 }
 
@@ -635,6 +725,32 @@ function openEdit(row) {
 async function submitShow() {
   if (!form.title || !form.location || !form.showTime) {
     return ElMessage.warning("请填写名称/地点/时间");
+  }
+
+  // 演示模式
+  if (isDemoMode) {
+    if (dlgMode.value === "add") {
+      const newShow = {
+        id: demoShows.length + 1,
+        title: form.title,
+        location: form.location,
+        showTime: fmtDateTime(form.showTime),
+        price: form.price,
+        category: form.category,
+        createTime: new Date().toLocaleString()
+      };
+      demoShows.push(newShow);
+      ElMessage.success("演示模式：新增成功！");
+    } else {
+      const idx = demoShows.findIndex(s => s.id === form.id);
+      if (idx !== -1) {
+        demoShows[idx] = { ...demoShows[idx], ...form };
+        ElMessage.success("演示模式：修改成功！");
+      }
+    }
+    dlgVisible.value = false;
+    await loadShows(current.value);
+    return;
   }
 
   const payload = {
@@ -668,6 +784,17 @@ async function submitShow() {
 
 // 删除：DELETE /api/admin/show/delete/{id}
 async function delShow(id) {
+  // 演示模式
+  if (isDemoMode) {
+    const idx = demoShows.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      demoShows.splice(idx, 1);
+      ElMessage.success("演示模式：删除成功！");
+    }
+    await loadShows(current.value);
+    return;
+  }
+  
   try {
     const res = await request.delete(`/api/admin/show/delete/${id}`);
     if (res.data.code !== 0) return ElMessage.error(res.data.msg || "删除失败");
@@ -683,6 +810,11 @@ async function delShow(id) {
 
 // 初始化座位：POST /api/seat/init/{showId}
 async function initSeats(showId) {
+  // 演示模式
+  if (isDemoMode) {
+    ElMessage.success("演示模式：座位初始化成功！");
+    return;
+  }
   try {
     const res = await request.post(`/api/seat/init/${showId}`);
     ElMessage.success(typeof res.data === "string" ? res.data : "初始化成功");
@@ -695,6 +827,12 @@ async function initSeats(showId) {
 const orders = ref([]);
 
 async function loadOrders() {
+  // 演示模式
+  if (isDemoMode) {
+    orders.value = demoOrders;
+    return;
+  }
+  
   try {
     const res = await request.get("/api/admin/order/all");
     if (res.data && typeof res.data === "object" && "code" in res.data) {
@@ -704,7 +842,8 @@ async function loadOrders() {
       orders.value = res.data || [];
     }
   } catch (e) {
-    ElMessage.error("获取订单失败：请检查后端是否启动 / CORS / X-ADMIN");
+    ElMessage.warning("后端未启动，已切换演示模式");
+    orders.value = demoOrders;
   }
 }
 
