@@ -115,23 +115,28 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import request from "../api/request";
+import request, { isDemoMode } from "../api/request";
 
 const router = useRouter();
 const isAdmin = (localStorage.getItem("role") || "").toUpperCase() === "ADMIN";
 
+// 演示模式数据
+const demoData = [
+  { id: 1, title: "周杰伦2026世界巡回演唱会", location: "北京国家体育场", showTime: "2026-06-15 19:30", price: 1280, category: "演唱会", imageUrl: "/uploads/0be63b1a17be4a7b96389c2347eb2096.jpg" },
+  { id: 2, title: "开心麻花爆笑喜剧《乌龙山伯爵》", location: "上海人民大舞台", showTime: "2026-05-20 14:00", price: 380, category: "话剧", imageUrl: "/uploads/193e164f9c05424fb58d77bd8fbac0c3.jpg" },
+  { id: 3, title: "2026NBA中国赛", location: "广州体育馆", showTime: "2026-08-10 20:00", price: 880, category: "体育赛事", imageUrl: "/uploads/36089b190f9b4dd2a9ed7ff42e517eda.jpg" },
+  { id: 4, title: "理查德克莱德曼钢琴独奏会", location: "深圳音乐厅", showTime: "2026-07-25 20:00", price: 680, category: "音乐会", imageUrl: "/uploads/380c08cf90e34110bd7061cc0a2c625f.jpg" },
+  { id: 5, title: "舞剧《只此青绿》", location: "杭州大剧院", showTime: "2026-06-01 19:30", price: 480, category: "舞蹈", imageUrl: "/uploads/55c55c6fd0c44dfbb5c7779f02f6a86c.jpg" },
+  { id: 6, title: "德云社相声专场", location: "南京人民大会堂", showTime: "2026-05-18 19:30", price: 280, category: "曲艺杂技", imageUrl: "/uploads/585bfb08525f4ee584df9fbf273a9911.jpg" },
+];
+
 const allList = ref([]);
 const recommendList = ref([]);
-
-// 筛选
 const keyword = ref("");
 const category = ref("");
-
-// ✅ 分页状态
 const page = ref(1);
 const pageSize = ref(8);
 
-// 跳转
 function goSeat(showId) {
   router.push(`/seat/${showId}`);
 }
@@ -149,38 +154,40 @@ function logout() {
   router.push("/login");
 }
 
-// 图片地址
 function fullUrl(p) {
   if (!p) return "";
   if (p.startsWith("http")) return p;
   return "http://localhost:8081" + p;
 }
 
-// 加载列表
 async function loadAll() {
+  // 演示模式直接使用本地数据
+  if (isDemoMode) {
+    allList.value = demoData;
+    recommendList.value = demoData.slice(0, 5);
+    page.value = 1;
+    return;
+  }
+
   try {
     const res = await request.get("/api/show/list");
     const list = res.data || [];
     allList.value = Array.isArray(list) ? list : [];
-
-    // 推荐：取前 5 个有图的
     recommendList.value = allList.value.filter((i) => i.imageUrl).slice(0, 5);
-
-    // 刷新后回到第一页
     page.value = 1;
   } catch (e) {
     console.error(e);
-    ElMessage.error("演出加载失败：请检查后端是否启动(8081)");
-    allList.value = [];
-    recommendList.value = [];
+    // 后端不可用时自动切换演示模式
+    ElMessage.warning("后端未启动，已切换为演示模式");
+    allList.value = demoData;
+    recommendList.value = demoData.slice(0, 5);
+    page.value = 1;
   }
 }
 
-// ✅ 过滤（前端筛选）
 const filtered = computed(() => {
   const kw = (keyword.value || "").trim();
   const cat = (category.value || "").trim();
-
   return allList.value.filter((x) => {
     const okKw = !kw || String(x.title || "").includes(kw);
     const okCat = !cat || String(x.category || "") === cat;
@@ -188,14 +195,12 @@ const filtered = computed(() => {
   });
 });
 
-// ✅ 当前页数据
 const pageList = computed(() => {
   const start = (page.value - 1) * pageSize.value;
   const end = start + pageSize.value;
   return filtered.value.slice(start, end);
 });
 
-// 查询/重置（只要改筛选就回到第1页）
 function applyFilter() {
   page.value = 1;
   ElMessage.success("筛选已应用");
@@ -207,7 +212,6 @@ function resetFilter() {
   ElMessage.success("已重置");
 }
 
-// 分页事件
 function onPageChange(p) {
   page.value = p;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -217,7 +221,6 @@ function onSizeChange(s) {
   page.value = 1;
 }
 
-// ✅ 防止“在某页筛选后页码越界”导致空白
 watch(filtered, () => {
   const maxPage = Math.max(1, Math.ceil(filtered.value.length / pageSize.value));
   if (page.value > maxPage) page.value = 1;
