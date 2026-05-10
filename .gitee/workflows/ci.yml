@@ -1,14 +1,51 @@
+# Gitee 流水线配置
+# 官方文档: https://gitee.com/help/articles/4192
+
 stages:
   - build
 
-build:
+# 缓存配置
+cache:
+  key: ${CI_COMMIT_REF_NAME}
+  paths:
+    - .m2/repository
+    - node_modules/
+    - damai-ticket-frontend/node_modules/
+
+# Java 后端构建
+build-backend:
   stage: build
+  image: maven:3.9-openjdk-17
   script:
     - echo "=== 大麦网票务系统 CI构建 ==="
     - echo "构建后端..."
-    - cd damai-ticket && mvn clean package -DskipTests
-    - echo "后端构建完成"
+    - cd damai-ticket
+    - mvn clean package -DskipTests -q
+    - echo "后端构建完成 ✅"
+  artifacts:
+    paths:
+      - damai-ticket/target/*.jar
+    expire_in: 1 day
+  only:
+    - master
+    - main
+
+# Node.js 前端构建
+build-frontend:
+  stage: build
+  image: node:22
+  script:
     - echo "构建前端..."
-    - cd ../damai-ticket-frontend && npm install && npm run build
-    - echo "前端构建完成"
-    - echo "=== 构建成功 ==="
+    - cd damai-ticket-frontend
+    # 使用淘宝镜像加速
+    - npm config set registry https://registry.npmmirror.com
+    - npm install
+    - npm run build
+    - echo "前端构建完成 ✅"
+  artifacts:
+    paths:
+      - damai-ticket-frontend/dist/
+    expire_in: 1 day
+  only:
+    - master
+    - main
