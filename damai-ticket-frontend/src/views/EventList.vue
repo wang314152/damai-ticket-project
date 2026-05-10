@@ -120,14 +120,14 @@ import request, { isDemoMode } from "../api/request";
 const router = useRouter();
 const isAdmin = (localStorage.getItem("role") || "").toUpperCase() === "ADMIN";
 
-// 演示模式数据
+// 演示模式数据 - 使用网络图片
 const demoData = [
-  { id: 1, title: "周杰伦2026世界巡回演唱会", location: "北京国家体育场", showTime: "2026-06-15 19:30", price: 1280, category: "演唱会", imageUrl: "/uploads/0be63b1a17be4a7b96389c2347eb2096.jpg" },
-  { id: 2, title: "开心麻花爆笑喜剧《乌龙山伯爵》", location: "上海人民大舞台", showTime: "2026-05-20 14:00", price: 380, category: "话剧", imageUrl: "/uploads/193e164f9c05424fb58d77bd8fbac0c3.jpg" },
-  { id: 3, title: "2026NBA中国赛", location: "广州体育馆", showTime: "2026-08-10 20:00", price: 880, category: "体育赛事", imageUrl: "/uploads/36089b190f9b4dd2a9ed7ff42e517eda.jpg" },
-  { id: 4, title: "理查德克莱德曼钢琴独奏会", location: "深圳音乐厅", showTime: "2026-07-25 20:00", price: 680, category: "音乐会", imageUrl: "/uploads/380c08cf90e34110bd7061cc0a2c625f.jpg" },
-  { id: 5, title: "舞剧《只此青绿》", location: "杭州大剧院", showTime: "2026-06-01 19:30", price: 480, category: "舞蹈", imageUrl: "/uploads/55c55c6fd0c44dfbb5c7779f02f6a86c.jpg" },
-  { id: 6, title: "德云社相声专场", location: "南京人民大会堂", showTime: "2026-05-18 19:30", price: 280, category: "曲艺杂技", imageUrl: "/uploads/585bfb08525f4ee584df9fbf273a9911.jpg" },
+  { id: 1, title: "周杰伦2026世界巡回演唱会", location: "北京国家体育场", showTime: "2026-06-15 19:30", price: 1280, category: "演唱会", imageUrl: "https://picsum.photos/seed/concert1/400/300" },
+  { id: 2, title: "开心麻花爆笑喜剧《乌龙山伯爵》", location: "上海人民大舞台", showTime: "2026-05-20 14:00", price: 380, category: "话剧", imageUrl: "https://picsum.photos/seed/theater1/400/300" },
+  { id: 3, title: "2026NBA中国赛", location: "广州体育馆", showTime: "2026-08-10 20:00", price: 880, category: "体育赛事", imageUrl: "https://picsum.photos/seed/sports1/400/300" },
+  { id: 4, title: "理查德克莱德曼钢琴独奏会", location: "深圳音乐厅", showTime: "2026-07-25 20:00", price: 680, category: "音乐会", imageUrl: "https://picsum.photos/seed/piano1/400/300" },
+  { id: 5, title: "舞剧《只此青绿》", location: "杭州大剧院", showTime: "2026-06-01 19:30", price: 480, category: "舞蹈", imageUrl: "https://picsum.photos/seed/dance1/400/300" },
+  { id: 6, title: "德云社相声专场", location: "南京人民大会堂", showTime: "2026-05-18 19:30", price: 280, category: "曲艺杂技", imageUrl: "https://picsum.photos/seed/crosstalk1/400/300" },
 ];
 
 const allList = ref([]);
@@ -156,7 +156,12 @@ function logout() {
 
 function fullUrl(p) {
   if (!p) return "";
+  // 网络图片直接返回
   if (p.startsWith("http")) return p;
+  // 演示模式或本地模式
+  if (isDemoMode) {
+    return "https://picsum.photos/seed/default/400/300";
+  }
   return "http://localhost:8081" + p;
 }
 
