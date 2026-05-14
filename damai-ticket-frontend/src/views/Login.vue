@@ -1,252 +1,443 @@
 <template>
-  <div class="page">
-    <el-card class="card">
-      <div class="title">大麦网票务系统</div>
+  <div class="login-page">
+    <!-- 装饰元素 -->
+    <div class="decorations">
+      <div class="float-circle circle-1"></div>
+      <div class="float-circle circle-2"></div>
+      <div class="float-circle circle-3"></div>
+    </div>
 
-      <el-tabs v-model="active" stretch>
-        <!-- 登录 -->
-        <el-tab-pane label="登录" name="login">
-          <el-form :model="loginForm" label-width="76px">
-            <el-form-item label="用户名">
-              <el-input v-model="loginForm.username" placeholder="请输入用户名" />
-            </el-form-item>
+    <!-- Logo -->
+    <div class="logo">
+      <div class="logo-icon">🎭</div>
+      <div class="logo-text">大麦网</div>
+      <div class="logo-slogan">让生活充满热爱</div>
+    </div>
 
-            <el-form-item label="密码">
-              <el-input v-model="loginForm.password" type="password" show-password placeholder="请输入密码" />
-            </el-form-item>
+    <!-- 登录卡片 -->
+    <div class="login-card">
+      <!-- Tab切换 -->
+      <div class="tabs">
+        <div class="tab" :class="{ active: activeTab === 'login' }" @click="activeTab = 'login'">
+          登录
+        </div>
+        <div class="tab" :class="{ active: activeTab === 'register' }" @click="activeTab = 'register'">
+          注册
+        </div>
+        <div class="tab-indicator" :style="{ left: activeTab === 'login' ? '10%' : '60%' }"></div>
+      </div>
 
-            <el-form-item>
-              <el-button type="primary" style="width: 100%" @click="doLogin">登录</el-button>
-            </el-form-item>
-          </el-form>
+      <!-- 登录表单 -->
+      <div v-show="activeTab === 'login'" class="form">
+        <div class="input-group">
+          <div class="input-icon">👤</div>
+          <input v-model="loginForm.username" type="text" placeholder="请输入用户名" />
+        </div>
+        <div class="input-group">
+          <div class="input-icon">🔒</div>
+          <input v-model="loginForm.password" :type="showPassword ? 'text' : 'password'" placeholder="请输入密码" />
+          <span class="toggle-password" @click="showPassword = !showPassword">
+            {{ showPassword ? '🙈' : '👁️' }}
+          </span>
+        </div>
+        <button class="btn-login" @click="handleLogin" :disabled="loading">
+          <span v-if="loading" class="loading-spinner"></span>
+          <span v-else>登 录</span>
+        </button>
+        <button class="btn-demo" @click="handleDemoLogin">
+          快速体验（演示账号）
+        </button>
+      </div>
 
-          <div class="tip">
-            没有账号？<el-link type="primary" @click="active='register'">去注册</el-link>
-          </div>
-        </el-tab-pane>
+      <!-- 注册表单 -->
+      <div v-show="activeTab === 'register'" class="form">
+        <div class="input-group">
+          <div class="input-icon">👤</div>
+          <input v-model="registerForm.username" type="text" placeholder="设置用户名" />
+        </div>
+        <div class="input-group">
+          <div class="input-icon">🔒</div>
+          <input v-model="registerForm.password" :type="showPassword ? 'text' : 'password'" placeholder="设置密码" />
+          <span class="toggle-password" @click="showPassword = !showPassword">
+            {{ showPassword ? '🙈' : '👁️' }}
+          </span>
+        </div>
+        <div class="input-group">
+          <div class="input-icon">📱</div>
+          <input v-model="registerForm.phone" type="tel" placeholder="手机号（选填）" />
+        </div>
+        <button class="btn-login" @click="handleRegister" :disabled="loading">
+          <span v-if="loading" class="loading-spinner"></span>
+          <span v-else>注 册</span>
+        </button>
+      </div>
 
-        <!-- 注册 -->
-        <el-tab-pane label="注册" name="register">
-          <el-form :model="regForm" label-width="76px">
-            <el-form-item label="用户名">
-              <el-input v-model="regForm.username" placeholder="4-20位，建议字母+数字" />
-            </el-form-item>
-
-            <el-form-item label="密码">
-              <el-input v-model="regForm.password" type="password" show-password placeholder="至少6位" />
-            </el-form-item>
-
-            <el-form-item label="确认">
-              <el-input v-model="regForm.confirm" type="password" show-password placeholder="再次输入密码" />
-            </el-form-item>
-
-            <el-form-item label="手机号">
-              <el-input v-model="regForm.phone" placeholder="可选" />
-            </el-form-item>
-
-            <el-form-item label="注册类型">
-              <el-switch
-                  v-model="regForm.isAdminRegister"
-                  active-text="管理员"
-                  inactive-text="普通用户"
-              />
-            </el-form-item>
-
-            <el-form-item label="邀请码" v-if="regForm.isAdminRegister">
-              <el-input v-model="regForm.adminCode" placeholder="请输入管理员邀请码" />
-            </el-form-item>
-
-            <el-form-item>
-              <el-button type="success" style="width: 100%" @click="doRegister">注册并登录</el-button>
-            </el-form-item>
-          </el-form>
-
-          <div class="tip">
-            已有账号？<el-link type="primary" @click="active='login'">去登录</el-link>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
+      <!-- 提示信息 -->
+      <div v-if="message" class="message" :class="{ error: messageType === 'error' }">
+        {{ message }}
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
-import request, { isDemoMode } from "../api/request";
+import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import request from '../api/request.js'
 
-const router = useRouter();
-const active = ref("login");
+const router = useRouter()
+const activeTab = ref('login')
+const showPassword = ref(false)
+const loading = ref(false)
+const message = ref('')
+const messageType = ref('info')
 
 const loginForm = reactive({
-  username: "",
-  password: "",
-});
+  username: '',
+  password: ''
+})
 
-const regForm = reactive({
-  username: "",
-  password: "",
-  confirm: "",
-  phone: "",
-  isAdminRegister: false,
-  adminCode: "",
-});
+const registerForm = reactive({
+  username: '',
+  password: '',
+  phone: ''
+})
 
-// ✅ 统一设置登录态（关键：管理员必须 isAdmin=1；普通用户清掉 isAdmin）
-function persistLogin(user) {
-  localStorage.setItem("userId", String(user.id));
-  localStorage.setItem("username", user.username || "");
-  localStorage.setItem("role", (user.role || "USER").toUpperCase());
-
-  const role = (user.role || "USER").toUpperCase();
-  if (role === "ADMIN") {
-    localStorage.setItem("isAdmin", "1"); // ✅ 让 request.js 自动加 X-ADMIN
-  } else {
-    localStorage.removeItem("isAdmin"); // ✅ 防止残留导致普通用户也带 X-ADMIN
-  }
+const showMessage = (msg, type = 'info') => {
+  message.value = msg
+  messageType.value = type
+  setTimeout(() => {
+    message.value = ''
+  }, 3000)
 }
 
-function jumpByRole(role) {
-  const r = (role || "USER").toUpperCase();
-  localStorage.setItem("role", r);
-  if (r === "ADMIN") router.push("/admin");
-  else router.push("/events");
-}
-
-// ✅ 兼容：后端可能返回 R 包装，也可能直接返回 user
-function unwrapUser(resData) {
-  // 1) 直接 user 对象（你现在的写法）
-  if (resData && typeof resData === "object" && "id" in resData) return resData;
-
-  // 2) R 包装：{code, msg, data:{...user}}
-  if (resData && typeof resData === "object" && "code" in resData) {
-    if (Number(resData.code) !== 0) return null;
-    return resData.data || null;
-  }
-
-  return null;
-}
-
-async function doLogin() {
+const handleLogin = async () => {
   if (!loginForm.username || !loginForm.password) {
-    return ElMessage.warning("请输入用户名和密码");
+    showMessage('请输入用户名和密码', 'error')
+    return
   }
 
-  // 演示模式
-  if (isDemoMode) {
-    const demoUsers = {
-      'admin': { id: 1, username: 'admin', role: 'ADMIN' },
-      'test': { id: 2, username: 'test', role: 'USER' }
-    };
-    const user = demoUsers[loginForm.username];
-    if (user && loginForm.password === '123456' || loginForm.password === 'admin123') {
-      persistLogin(user);
-      ElMessage.success("演示模式登录成功");
-      jumpByRole(user.role);
-    } else {
-      ElMessage.error("演示模式账号：admin/admin123 或 test/123456");
-    }
-    return;
-  }
-
+  loading.value = true
   try {
-    const res = await request.post("/api/auth/login", {
+    const res = await request.post('/api/auth/login', {
       username: loginForm.username,
-      password: loginForm.password,
-    });
+      password: loginForm.password
+    })
 
-    const user = unwrapUser(res.data);
-    if (!user || !user.id) {
-      return ElMessage.error("登录失败：账号或密码错误");
-    }
+    if (res && res.id) {
+      // 登录成功，保存用户信息
+      localStorage.setItem('userId', res.id)
+      localStorage.setItem('username', res.username)
+      localStorage.setItem('role', res.role || 'USER')
+      localStorage.setItem('token', 'mock-token-' + Date.now())
 
-    persistLogin(user);
-    ElMessage.success("登录成功");
-    jumpByRole(user.role);
-  } catch (e) {
-    // 后端不可用时自动切换演示模式
-    const demoUsers = {
-      'admin': { id: 1, username: 'admin', role: 'ADMIN' },
-      'test': { id: 2, username: 'test', role: 'USER' }
-    };
-    const user = demoUsers[loginForm.username];
-    if (user && (loginForm.password === '123456' || loginForm.password === 'admin123')) {
-      persistLogin(user);
-      ElMessage.success("演示模式登录成功");
-      jumpByRole(user.role);
+      showMessage('登录成功！', 'info')
+      setTimeout(() => {
+        router.push(res.role === 'ADMIN' ? '/admin' : '/')
+      }, 500)
     } else {
-      ElMessage.error("演示模式账号：admin/admin123 或 test/123456");
+      showMessage('用户名或密码错误', 'error')
     }
+  } catch (error) {
+    console.error('登录失败:', error)
+    showMessage('登录失败，请检查用户名和密码', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
-async function doRegister() {
-  if (regForm.isAdminRegister && !regForm.adminCode) {
-    return ElMessage.warning("请输入管理员邀请码");
-  }
-  if (!regForm.username || !regForm.password) {
-    return ElMessage.warning("请输入用户名和密码");
-  }
-  if (regForm.password.length < 6) {
-    return ElMessage.warning("密码至少6位");
-  }
-  if (regForm.password !== regForm.confirm) {
-    return ElMessage.warning("两次密码不一致");
+const handleDemoLogin = async () => {
+  // 演示账号
+  loginForm.username = 'test'
+  loginForm.password = '123'
+  await handleLogin()
+}
+
+const handleRegister = async () => {
+  if (!registerForm.username || !registerForm.password) {
+    showMessage('请填写用户名和密码', 'error')
+    return
   }
 
+  loading.value = true
   try {
-    const payload = {
-      username: regForm.username,
-      password: regForm.password,
-      phone: regForm.phone || null,
-      role: regForm.isAdminRegister ? "ADMIN" : "USER",
-      adminCode: regForm.isAdminRegister ? regForm.adminCode : null,
-    };
+    const res = await request.post('/api/auth/register', {
+      username: registerForm.username,
+      password: registerForm.password,
+      phone: registerForm.phone
+    })
 
-    const r = await request.post("/api/auth/register", payload);
-
-    // 兼容：注册接口可能返回字符串，也可能返回 R
-    if (typeof r.data === "string") {
-      if (!r.data.includes("成功")) return ElMessage.error(r.data);
-    } else if (r.data && typeof r.data === "object" && "code" in r.data) {
-      if (Number(r.data.code) !== 0) return ElMessage.error(r.data.msg || "注册失败");
+    if (res && (res === '注册成功' || res.includes('成功'))) {
+      showMessage('注册成功！请登录', 'info')
+      activeTab.value = 'login'
+      loginForm.username = registerForm.username
+      loginForm.password = registerForm.password
+    } else {
+      showMessage(res || '注册失败', 'error')
     }
-
-    ElMessage.success("注册成功，正在自动登录...");
-
-    // 自动登录
-    loginForm.username = regForm.username;
-    loginForm.password = regForm.password;
-    active.value = "login";
-    await doLogin();
-  } catch (e) {
-    ElMessage.error("注册失败：可能用户名已存在或后端未启动");
+  } catch (error) {
+    console.error('注册失败:', error)
+    showMessage('注册失败，用户名可能已存在', 'error')
+  } finally {
+    loading.value = false
   }
 }
 </script>
 
 <style scoped>
-.page {
+.login-page {
   min-height: 100vh;
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #f6f7fb;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
 }
-.card {
-  width: 420px;
-  border-radius: 14px;
+
+.decorations {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
-.title {
-  font-size: 20px;
-  font-weight: 700;
+
+.float-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  animation: float 6s ease-in-out infinite;
+}
+
+.circle-1 {
+  width: 200px;
+  height: 200px;
+  top: -50px;
+  left: -50px;
+  animation-delay: 0s;
+}
+
+.circle-2 {
+  width: 150px;
+  height: 150px;
+  bottom: -30px;
+  right: -30px;
+  animation-delay: 2s;
+}
+
+.circle-3 {
+  width: 100px;
+  height: 100px;
+  top: 50%;
+  right: 10%;
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+.logo {
   text-align: center;
-  margin-bottom: 14px;
+  color: white;
+  margin-bottom: 40px;
+  z-index: 1;
 }
-.tip {
+
+.logo-icon {
+  font-size: 64px;
+  margin-bottom: 10px;
+}
+
+.logo-text {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.logo-slogan {
+  font-size: 14px;
+  opacity: 0.9;
+  margin-top: 5px;
+}
+
+.login-card {
+  background: white;
+  border-radius: 24px;
+  padding: 40px 30px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.tabs {
+  display: flex;
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 4px;
+  position: relative;
+  margin-bottom: 30px;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px;
   text-align: center;
-  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 600;
   color: #666;
+  cursor: pointer;
+  transition: color 0.3s;
+  z-index: 2;
+}
+
+.tab.active {
+  color: #FF4D4D;
+}
+
+.tab-indicator {
+  position: absolute;
+  width: 40%;
+  height: calc(100% - 8px);
+  background: white;
+  border-radius: 8px;
+  top: 4px;
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  background: #f8f8f8;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.input-group:focus-within {
+  border-color: #FF4D4D;
+  background: white;
+}
+
+.input-icon {
+  font-size: 18px;
+  margin-right: 12px;
+}
+
+.input-group input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  outline: none;
+}
+
+.toggle-password {
+  cursor: pointer;
+  font-size: 18px;
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+
+.toggle-password:hover {
+  opacity: 1;
+}
+
+.btn-login {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4);
+}
+
+.btn-login:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 77, 77, 0.5);
+}
+
+.btn-login:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-login:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-demo {
+  background: transparent;
+  color: #FF4D4D;
+  border: 2px solid #FF4D4D;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-demo:hover {
+  background: #FFF5F5;
+}
+
+.message {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #E8F5E9;
+  color: #2E7D32;
+  text-align: center;
+  font-size: 14px;
+  animation: slideIn 0.3s ease;
+}
+
+.message.error {
+  background: #FFEBEE;
+  color: #C62828;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

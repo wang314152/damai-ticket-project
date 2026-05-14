@@ -4,9 +4,9 @@ import axios from "axios";
 const isDemoMode = window.location.hostname.includes('github.io');
 
 const request = axios.create({
-    // 演示模式不请求真实 API
-    baseURL: isDemoMode ? "" : "http://localhost:8081",
-    timeout: 8000,
+    // 演示模式不请求真实 API，开发模式使用相对路径走Vite代理
+    baseURL: isDemoMode ? "" : "",
+    timeout: 30000,
 });
 
 request.interceptors.request.use((config) => {
@@ -19,7 +19,7 @@ request.interceptors.request.use((config) => {
         config.headers["X-ADMIN"] = "1";
     }
 
-    console.log("[REQ]", config.method?.toUpperCase(), config.url, "role=", role, "isAdmin=", isAdmin, "X-ADMIN=", config.headers["X-ADMIN"]);
+    console.log("[REQ]", config.method?.toUpperCase(), config.url);
 
     return config;
 });

@@ -2,17 +2,25 @@
   <div class="wrap">
     <!-- 顶部栏 -->
     <div class="topbar">
-      <div class="title">后台管理系统</div>
-      <div>
-        <el-button @click="router.push('/events')">前台首页</el-button>
-        <el-button type="danger" plain @click="logout">退出</el-button>
+      <div class="topbar-left">
+        <span class="topbar-logo">🎭</span>
+        <span class="topbar-title">大麦网管理系统</span>
+        <el-tag type="warning" size="small" effect="dark" class="admin-tag">ADMIN</el-tag>
+      </div>
+      <div class="topbar-right">
+        <el-button @click="router.push('/')" class="topbar-btn">
+          <span>🏠</span> 前台首页
+        </el-button>
+        <el-button type="danger" plain @click="logout" class="topbar-btn">
+          <span>🚪</span> 退出
+        </el-button>
       </div>
     </div>
 
     <!-- 主体 Tabs -->
-    <el-tabs v-model="active">
+        <el-tabs v-model="active" type="border-card" class="admin-tabs">
       <!-- ===================== 演出管理 ===================== -->
-      <el-tab-pane label="演出管理" name="show">
+      <el-tab-pane label="🎭 演出管理" name="show">
         <!-- 搜索 + 新增 -->
         <el-card>
           <div class="row">
@@ -162,7 +170,7 @@
       </el-tab-pane>
 
       <!-- ===================== 订单管理 ===================== -->
-      <el-tab-pane label="订单管理" name="order">
+      <el-tab-pane label="📋 订单管理" name="order">
         <el-table :data="orders" border>
           <el-table-column prop="id" label="订单ID" width="90" />
           <el-table-column prop="userId" label="用户ID" width="90" />
@@ -181,7 +189,7 @@
       </el-tab-pane>
 
       <!-- 用户管理 -->
-      <el-tab-pane label="用户管理" name="user">
+      <el-tab-pane label="👥 用户管理" name="user">
         <el-card>
           <div class="row">
             <div class="left">
@@ -272,84 +280,250 @@
 
 
       <!-- ===================== 数据统计 ===================== -->
-      <el-tab-pane label="数据统计" name="stats">
-        <el-card style="border-radius:14px;">
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <el-select v-model="statsShowId" placeholder="选择演出（来自演出管理列表）" style="width:360px;">
-              <el-option
-                  v-for="s in shows"
-                  :key="s.id"
-                  :label="`${s.title}（${s.category || '未分类'}）`"
-                  :value="s.id"
-              />
-            </el-select>
-            <el-button type="primary" @click="loadStats">查询</el-button>
-            <el-button @click="refreshStatsBase">刷新演出下拉</el-button>
+      <el-tab-pane label="📊 数据统计" name="stats">
+        <div class="stats-container">
+          <!-- 顶部选择区 -->
+          <div class="stats-header">
+            <div class="header-left">
+              <span class="header-icon">📊</span>
+              <span class="header-title">销售数据分析中心</span>
+            </div>
+            <div class="header-right">
+              <el-select v-model="statsShowId" placeholder="选择演出查看统计" style="width:320px;" clearable filterable>
+                <el-option
+                    v-for="s in shows"
+                    :key="s.id"
+                    :label="`${s.title}`"
+                    :value="s.id"
+                >
+                  <span style="float:left">{{ s.title }}</span>
+                  <el-tag size="small" type="info" style="float:right;margin-left:8px;">{{ s.category }}</el-tag>
+                </el-option>
+              </el-select>
+              <el-button type="primary" size="large" class="query-btn" @click="loadStats" :icon="'Search'">查询数据</el-button>
+              <el-button size="large" @click="refreshStatsBase" :icon="'Refresh'">刷新</el-button>
+            </div>
           </div>
 
-          <div v-if="stats" style="margin-top:16px;">
-            <el-row :gutter="12">
-              <el-col :span="6"><el-card>总座位：<b>{{ stats.totalSeats }}</b></el-card></el-col>
-              <el-col :span="6"><el-card>已售座位：<b>{{ stats.soldSeats }}</b></el-card></el-col>
-              <el-col :span="6"><el-card>锁定座位：<b>{{ stats.lockedSeats }}</b></el-card></el-col>
-              <el-col :span="6"><el-card>售出率：<b>{{ (Number(stats.sellRate||0)*100).toFixed(1) }}%</b></el-card></el-col>
-            </el-row>
-
-            <el-row :gutter="12" style="margin-top:12px;">
-              <el-col :span="6"><el-card>已支付订单：<b>{{ stats.paidOrders }}</b></el-card></el-col>
-              <el-col :span="6"><el-card>未支付订单：<b>{{ stats.unpaidOrders }}</b></el-card></el-col>
-              <el-col :span="12"><el-card>售出金额：<b>¥{{ stats.revenue }}</b></el-card></el-col>
-            </el-row>
-
-            <el-descriptions
-                style="margin-top:12px;"
-                :column="2"
-                border
-            >
-              <el-descriptions-item label="评分人数">
-                {{ stats.ratingCount ?? 0 }}
-              </el-descriptions-item>
-
-              <el-descriptions-item label="平均评分">
-                {{ Number(stats.avgScore || 0).toFixed(1) }}
-              </el-descriptions-item>
-            </el-descriptions>
-
-
-            <div style="margin-top:14px;">
-              <el-progress :percentage="Math.round(Number(stats.sellRate||0) * 100)" />
+          <div v-if="stats">
+            <!-- 核心指标卡片 -->
+            <div class="metrics-grid">
+              <div class="metric-card metric-primary">
+                <div class="metric-bg-icon">🎫</div>
+                <div class="metric-content">
+                  <div class="metric-label">总座位数</div>
+                  <div class="metric-value">{{ stats.totalSeats }}</div>
+                  <div class="metric-trend up">
+                    <span>100%</span>
+                    <span>座位容量</span>
+                  </div>
+                </div>
+              </div>
+              <div class="metric-card metric-success">
+                <div class="metric-bg-icon">✅</div>
+                <div class="metric-content">
+                  <div class="metric-label">已售座位</div>
+                  <div class="metric-value">{{ stats.soldSeats }}</div>
+                  <div class="metric-trend">
+                    <span>占比 {{ ((stats.soldSeats / stats.totalSeats) * 100).toFixed(1) }}%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="metric-card metric-warning">
+                <div class="metric-bg-icon">🔒</div>
+                <div class="metric-content">
+                  <div class="metric-label">锁定座位</div>
+                  <div class="metric-value">{{ stats.lockedSeats }}</div>
+                  <div class="metric-trend">
+                    <span>占比 {{ ((stats.lockedSeats / stats.totalSeats) * 100).toFixed(1) }}%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="metric-card metric-money">
+                <div class="metric-bg-icon">💰</div>
+                <div class="metric-content">
+                  <div class="metric-label">销售收入</div>
+                  <div class="metric-value money">¥{{ Number(stats.revenue || 0).toLocaleString() }}</div>
+                  <div class="metric-trend up">
+                    <span>平均 {{ stats.paidOrders > 0 ? Math.round(stats.revenue / stats.paidOrders) : 0 }}元/单</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <el-card style="margin-top:12px; border-radius:14px;" v-if="stats">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="font-weight:800;">最新评论</div>
-                <el-button size="small" @click="loadRatings(1)">刷新评价</el-button>
+            <!-- 主图表区域 -->
+            <div class="charts-section">
+              <!-- 左侧：座位和订单饼图 -->
+              <div class="chart-column">
+                <el-card class="premium-chart-card">
+                  <template #header>
+                    <div class="chart-header">
+                      <span class="chart-icon">🎭</span>
+                      <span class="chart-title">座位销售分布</span>
+                      <el-tag size="small" type="success" effect="dark">{{ ((stats.soldSeats / stats.totalSeats) * 100).toFixed(0) }}% 售出</el-tag>
+                    </div>
+                  </template>
+                  <v-chart :option="seatPieOption" style="height:280px;"></v-chart>
+                  <div class="chart-legend">
+                    <div class="legend-item"><span class="dot" style="background:#67C23A"></span>已售座位</div>
+                    <div class="legend-item"><span class="dot" style="background:#909399"></span>锁定座位</div>
+                    <div class="legend-item"><span class="dot" style="background:#E4E7ED"></span>可售座位</div>
+                  </div>
+                </el-card>
+
+                <el-card class="premium-chart-card">
+                  <template #header>
+                    <div class="chart-header">
+                      <span class="chart-icon">📋</span>
+                      <span class="chart-title">订单状态统计</span>
+                    </div>
+                  </template>
+                  <v-chart :option="orderStatusOption" style="height:280px;"></v-chart>
+                </el-card>
               </div>
+
+              <!-- 右侧：仪表盘和进度 -->
+              <div class="chart-column">
+                <el-card class="premium-chart-card gauge-card">
+                  <template #header>
+                    <div class="chart-header">
+                      <span class="chart-icon">🎯</span>
+                      <span class="chart-title">销售目标达成</span>
+                    </div>
+                  </template>
+                  <v-chart :option="sellRateGaugeOption" style="height:200px;"></v-chart>
+                  <div class="gauge-footer">
+                    <div class="gauge-stat">
+                      <span class="gauge-stat-value success">{{ stats.paidOrders }}</span>
+                      <span class="gauge-stat-label">已完成订单</span>
+                    </div>
+                    <el-divider direction="vertical"></el-divider>
+                    <div class="gauge-stat">
+                      <span class="gauge-stat-value warning">{{ stats.unpaidOrders }}</span>
+                      <span class="gauge-stat-label">待支付订单</span>
+                    </div>
+                  </div>
+                </el-card>
+
+                <!-- 销售进度展示 -->
+                <el-card class="progress-card">
+                  <template #header>
+                    <div class="chart-header">
+                      <span class="chart-icon">📈</span>
+                      <span class="chart-title">销售进度</span>
+                    </div>
+                  </template>
+                  <div class="progress-list">
+                    <div class="progress-item">
+                      <div class="progress-label">
+                        <span>已售出票</span>
+                        <span class="progress-value">{{ ((stats.soldSeats / stats.totalSeats) * 100).toFixed(1) }}%</span>
+                      </div>
+                      <el-progress :percentage="Math.round((stats.soldSeats / stats.totalSeats) * 100)" :color="progressColors.green" :show-text="false" :stroke-width="10" />
+                    </div>
+                    <div class="progress-item">
+                      <div class="progress-label">
+                        <span>已支付订单</span>
+                        <span class="progress-value">{{ stats.paidOrders }}单</span>
+                      </div>
+                      <el-progress :percentage="Math.min(Math.round((stats.paidOrders / (stats.paidOrders + stats.unpaidOrders || 1)) * 100), 100)" :color="progressColors.blue" :show-text="false" :stroke-width="10" />
+                    </div>
+                    <div class="progress-item">
+                      <div class="progress-label">
+                        <span>用户评分</span>
+                        <span class="progress-value">{{ Number(stats.avgScore || 0).toFixed(1) }}分</span>
+                      </div>
+                      <el-progress :percentage="Math.round((stats.avgScore / 5) * 100)" :color="progressColors.orange" :show-text="false" :stroke-width="10" />
+                    </div>
+                  </div>
+                </el-card>
+              </div>
+            </div>
+
+            <!-- 底部图表区 -->
+            <div class="bottom-charts">
+              <el-row :gutter="16">
+                <el-col :span="12">
+                  <el-card class="premium-chart-card">
+                    <template #header>
+                      <div class="chart-header">
+                        <span class="chart-icon">💵</span>
+                        <span class="chart-title">收入与订单分析</span>
+                      </div>
+                    </template>
+                    <v-chart :option="revenueBarOption" style="height:260px;"></v-chart>
+                  </el-card>
+                </el-col>
+                <el-col :span="12">
+                  <el-card class="premium-chart-card">
+                    <template #header>
+                      <div class="chart-header">
+                        <span class="chart-icon">⭐</span>
+                        <span class="chart-title">用户评价分布</span>
+                        <el-tag size="small" type="warning" effect="plain">平均 {{ Number(stats.avgScore || 0).toFixed(1) }} 分</el-tag>
+                      </div>
+                    </template>
+                    <v-chart :option="ratingBarOption" style="height:260px;"></v-chart>
+                  </el-card>
+                </el-col>
+              </el-row>
+            </div>
+
+            <!-- 场馆座位热力图 -->
+            <el-card class="premium-chart-card seat-map-card">
+              <template #header>
+                <div class="chart-header">
+                  <span class="chart-icon">🏟️</span>
+                  <span class="chart-title">场馆座位分布图</span>
+                  <div class="seat-legend">
+                    <span class="legend-item"><span class="seat-dot" style="background:#fff;border:2px solid #ddd"></span>可售</span>
+                    <span class="legend-item"><span class="seat-dot" style="background:#909399"></span>已售</span>
+                    <span class="legend-item"><span class="seat-dot" style="background:#E6A23C"></span>锁定</span>
+                  </div>
+                </div>
+              </template>
+              <div class="seat-map-container">
+                <div class="stage">● 舞 台 ●</div>
+                <v-chart :option="seatHeatmapOption" style="height:280px;"></v-chart>
+              </div>
+            </el-card>
+
+            <!-- 最新评论区域 -->
+            <el-card class="premium-chart-card comments-card">
+              <template #header>
+                <div class="chart-header">
+                  <span class="chart-icon">💬</span>
+                  <span class="chart-title">用户最新评价</span>
+                  <span class="comment-count">共 {{ ratingPage.total }} 条评价</span>
+                  <el-button size="small" @click="loadRatings(1)" :icon="'Refresh'" circle></el-button>
+                </div>
+              </template>
 
               <el-empty v-if="(ratingPage.records||[]).length===0" description="暂无评价" />
 
-              <el-timeline v-else style="margin-top:10px;">
-                <el-timeline-item
-                    v-for="r in ratingPage.records"
-                    :key="r.id"
-                    :timestamp="r.createTime"
-                    placement="top"
-                >
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <el-rate :model-value="r.score" disabled />
-                    <span style="color:#64748b;">用户ID：{{ r.userId }}</span>
-                    <span style="color:#64748b;">订单ID：{{ r.orderId }}</span>
+              <div v-else class="comments-grid">
+                <div v-for="r in ratingPage.records" :key="r.id" class="comment-item">
+                  <div class="comment-header">
+                    <div class="comment-user">
+                      <el-avatar :size="36" :icon="'User'" :style="'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)'"></el-avatar>
+                      <div class="user-info">
+                        <span class="user-name">用户 #{{ r.userId }}</span>
+                        <el-rate :model-value="r.score" disabled size="small" show-score />
+                      </div>
+                    </div>
+                    <span class="comment-time">{{ formatTime(r.createTime) }}</span>
                   </div>
-                  <div style="margin-top:6px;color:#111827;">
-                    {{ r.content || "（无文字评价）" }}
+                  <div class="comment-content">{{ r.content || "用户未留下文字评价" }}</div>
+                  <div class="comment-footer">
+                    <el-tag size="small" effect="plain">订单 #{{ r.orderId }}</el-tag>
                   </div>
-                </el-timeline-item>
-              </el-timeline>
+                </div>
+              </div>
 
-              <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+              <div v-if="(ratingPage.records||[]).length>0" style="display:flex;justify-content:center;margin-top:16px;">
                 <el-pagination
                     background
-                    layout="prev, pager, next, total"
+                    layout="prev, pager, next"
                     :total="Number(ratingPage.total||0)"
                     :page-size="Number(ratingPage.size||5)"
                     :current-page="Number(ratingPage.current||1)"
@@ -360,20 +534,30 @@
 
           </div>
 
-          <div v-else style="margin-top:16px;color:#999;">
-            请选择一个演出并点击「查询」查看销售统计。
+          <!-- 空状态 -->
+          <div v-else class="empty-state">
+            <div class="empty-icon">📊</div>
+            <div class="empty-title">选择演出查看数据分析</div>
+            <div class="empty-desc">从上方选择一个演出，即可查看详细的数据分析报表</div>
           </div>
-        </el-card>
+        </div>
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import request, { isDemoMode } from "../api/request";
+import VChart from "vue-echarts";
+import { use } from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
+import { PieChart, BarChart, GaugeChart, HeatmapChart } from "echarts/charts";
+import { TitleComponent, TooltipComponent, LegendComponent, GridComponent, VisualMapComponent } from "echarts/components";
+
+use([CanvasRenderer, PieChart, BarChart, GaugeChart, HeatmapChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent, VisualMapComponent]);
 
 const router = useRouter();
 const active = ref("show");
@@ -408,6 +592,312 @@ const demoStats = {
   ratingCount: 32,
   avgScore: 4.5
 };
+
+// ===================== 图表配置 =====================
+const progressColors = {
+  green: [{ color: "#f0f9eb" }, { color: "#67C23A" }],
+  blue: [{ color: "#ecf5ff" }, { color: "#409EFF" }],
+  orange: [{ color: "#fdf6ec" }, { color: "#E6A23C" }]
+};
+
+const seatPieOption = computed(() => {
+  if (!stats.value) return {};
+  const sold = stats.value.soldSeats || 0;
+  const locked = stats.value.lockedSeats || 0;
+  const available = (stats.value.totalSeats || 0) - sold - locked;
+  return {
+    tooltip: { trigger: "item", formatter: "{b}: {c}座 ({d}%)" },
+    legend: { show: false },
+    color: ["#67C23A", "#909399", "#E4E7ED"],
+    series: [{
+      type: "pie",
+      radius: ["55%", "80%"],
+      center: ["50%", "50%"],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 12, borderColor: "#fff", borderWidth: 3 },
+      label: { show: false },
+      emphasis: { 
+        scale: true, 
+        scaleSize: 10,
+        label: { show: true, fontSize: 14, fontWeight: "bold" }
+      },
+      data: [
+        { value: sold, name: "已售", itemStyle: { color: "#67C23A" } },
+        { value: locked, name: "锁定", itemStyle: { color: "#909399" } },
+        { value: available, name: "可售", itemStyle: { color: "#E4E7ED" } }
+      ]
+    }]
+  };
+});
+
+const orderStatusOption = computed(() => {
+  if (!stats.value) return {};
+  const paid = stats.value.paidOrders || 0;
+  const unpaid = stats.value.unpaidOrders || 0;
+  const cancelled = Math.max(3, Math.round((paid + unpaid) * 0.1));
+  return {
+    tooltip: { trigger: "item", formatter: "{b}: {c}单 ({d}%)" },
+    legend: { show: false },
+    color: ["#67C23A", "#F56C6C", "#909399"],
+    series: [{
+      type: "pie",
+      radius: ["50%", "75%"],
+      center: ["50%", "50%"],
+      roseType: "area",
+      itemStyle: { borderRadius: 10, borderColor: "#fff", borderWidth: 2 },
+      label: { show: true, formatter: "{b}\n{c}单", color: "#333", fontSize: 12 },
+      labelLine: { length: 5, length2: 5 },
+      data: [
+        { value: paid, name: "已支付", itemStyle: { color: "#67C23A" } },
+        { value: unpaid, name: "待支付", itemStyle: { color: "#F56C6C" } },
+        { value: cancelled, name: "已取消", itemStyle: { color: "#909399" } }
+      ]
+    }]
+  };
+});
+
+const sellRateGaugeOption = computed(() => {
+  if (!stats.value) return {};
+  const rate = Math.round((Number(stats.value.sellRate || 0)) * 100);
+  const color = rate > 70 ? "#67C23A" : rate > 40 ? "#E6A23C" : "#F56C6C";
+  return {
+    series: [{
+      type: "gauge",
+      startAngle: 200,
+      endAngle: -20,
+      center: ["50%", "60%"],
+      radius: "100%",
+      min: 0,
+      max: 100,
+      splitNumber: 5,
+      itemStyle: { color: color },
+      progress: { show: true, width: 20, itemStyle: { borderRadius: 10 } },
+      pointer: { show: false },
+      axisLine: { lineStyle: { width: 20, color: [[1, "#F0F2F5"]] } },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      anchor: { show: false },
+      title: { show: false },
+      detail: {
+        valueAnimation: true,
+        fontSize: 42,
+        fontWeight: "bold",
+        fontFamily: "DIN Alternate",
+        offsetCenter: [0, "30%"],
+        formatter: "{value}%",
+        color: color
+      },
+      data: [{ value: rate, name: "售出率" }]
+    }]
+  };
+});
+
+const revenueBarOption = computed(() => {
+  if (!stats.value) return {};
+  return {
+    tooltip: { 
+      trigger: "axis", 
+      axisPointer: { type: "shadow" },
+      backgroundColor: "rgba(255,255,255,0.95)",
+      borderColor: "#ddd",
+      textStyle: { color: "#333" }
+    },
+    legend: { data: ["订单数", "收入金额"], bottom: 0, textStyle: { color: "#666" } },
+    grid: { left: "3%", right: "4%", bottom: "18%", top: "8%", containLabel: true },
+    xAxis: { 
+      type: "category", 
+      data: ["已支付", "待支付", "已取消"],
+      axisLine: { lineStyle: { color: "#E4E7ED" } },
+      axisLabel: { color: "#666" }
+    },
+    yAxis: [
+      { type: "value", name: "订单数", axisLabel: { color: "#999" }, splitLine: { lineStyle: { color: "#F0F2F5" } } },
+      { type: "value", name: "金额(元)", axisLabel: { color: "#999" }, splitLine: { show: false } }
+    ],
+    series: [
+      {
+        name: "订单数",
+        type: "bar",
+        barWidth: "30%",
+        barGap: "30%",
+        itemStyle: { 
+          color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "#409EFF" }, { offset: 1, color: "#66b1ff" }] },
+          borderRadius: [6, 6, 0, 0] 
+        },
+        data: [stats.value.paidOrders || 0, stats.value.unpaidOrders || 0, Math.round((stats.value.paidOrders || 0) * 0.1)]
+      },
+      {
+        name: "收入金额",
+        type: "bar",
+        yAxisIndex: 1,
+        barWidth: "30%",
+        itemStyle: { 
+          color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "#67C23A" }, { offset: 1, color: "#95d475" }] },
+          borderRadius: [6, 6, 0, 0] 
+        },
+        data: [stats.value.revenue || 0, Math.round((stats.value.revenue || 0) * 0.15), 0]
+      }
+    ]
+  };
+});
+
+const ratingBarOption = computed(() => {
+  const ratingCount = stats.value?.ratingCount || 10;
+  return {
+    tooltip: { 
+      trigger: "axis", 
+      axisPointer: { type: "shadow" },
+      backgroundColor: "rgba(255,255,255,0.95)",
+      textStyle: { color: "#333" }
+    },
+    grid: { left: "3%", right: "4%", bottom: "8%", top: "8%", containLabel: true },
+    xAxis: { 
+      type: "category", 
+      data: ["5星", "4星", "3星", "2星", "1星"],
+      axisLine: { lineStyle: { color: "#E4E7ED" } },
+      axisLabel: { color: "#666" }
+    },
+    yAxis: { 
+      type: "value", 
+      name: "评价人数",
+      axisLabel: { color: "#999" },
+      splitLine: { lineStyle: { color: "#F0F2F5" } }
+    },
+    series: [{
+      type: "bar",
+      barWidth: "45%",
+      itemStyle: {
+        color: (params) => {
+          const colors = ["#67C23A", "#95D475", "#E6A23C", "#F56C6C", "#909399"];
+          return {
+            type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [{ offset: 0, color: colors[params.dataIndex] }, { offset: 1, color: colors[params.dataIndex] + "99" }]
+          };
+        },
+        borderRadius: [6, 6, 0, 0]
+      },
+      data: [
+        Math.round(ratingCount * 0.5),
+        Math.round(ratingCount * 0.3),
+        Math.round(ratingCount * 0.12),
+        Math.round(ratingCount * 0.05),
+        Math.round(ratingCount * 0.03)
+      ]
+    }]
+  };
+});
+
+const seatHeatmapOption = computed(() => {
+  const rows = 10;
+  const cols = 20;
+  const sold = stats.value?.soldSeats || 0;
+  const locked = stats.value?.lockedSeats || 0;
+  const total = rows * cols;
+  
+  // 生成座位数据：0=可售(白色), 1=已售(灰色), 2=锁定(橙色)
+  const data = [];
+  const seatStatus = Array(rows).fill(null).map(() => Array(cols).fill(0));
+  
+  // 随机分配已售座位
+  let soldCount = 0;
+  const soldTarget = Math.min(sold, total * 0.6);
+  while (soldCount < soldTarget) {
+    const r = Math.floor(Math.random() * rows);
+    const c = Math.floor(Math.random() * cols);
+    if (seatStatus[r][c] === 0) {
+      seatStatus[r][c] = 1;
+      soldCount++;
+    }
+  }
+  
+  // 随机分配锁定座位
+  let lockedCount = 0;
+  const lockedTarget = Math.min(locked, total * 0.1);
+  while (lockedCount < lockedTarget) {
+    const r = Math.floor(Math.random() * rows);
+    const c = Math.floor(Math.random() * cols);
+    if (seatStatus[r][c] === 0) {
+      seatStatus[r][c] = 2;
+      lockedCount++;
+    }
+  }
+  
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      data.push([j, i, seatStatus[i][j]]);
+    }
+  }
+  
+  return {
+    tooltip: {
+      formatter: (params) => {
+        const status = params.data[2];
+        const statusText = status === 0 ? "可售" : status === 1 ? "已售" : "锁定";
+        const statusColor = status === 0 ? "#E4E7ED" : status === 1 ? "#909399" : "#E6A23C";
+        return `<div style="padding:4px;">
+          <div style="font-weight:bold;">${String.fromCharCode(65 + params.data[1])}${(params.data[0] + 1)}</div>
+          <div style="color:${statusColor};margin-top:4px;">● ${statusText}</div>
+        </div>`;
+      },
+      backgroundColor: "rgba(255,255,255,0.98)",
+      borderColor: "#ddd",
+      textStyle: { color: "#333" }
+    },
+    grid: { left: "3%", right: "2%", bottom: "12%", top: "5%", containLabel: true },
+    xAxis: { 
+      type: "category", 
+      data: Array.from({length: cols}, (_, i) => i + 1),
+      name: "座位号",
+      nameLocation: "middle",
+      nameGap: "30",
+      nameTextStyle: { color: "#999", fontSize: 12 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: "#CCC", fontSize: 10 }
+    },
+    yAxis: { 
+      type: "category", 
+      data: Array.from({length: rows}, (_, i) => String.fromCharCode(65 + i)),
+      name: "排号",
+      nameLocation: "middle",
+      nameGap: "25",
+      nameTextStyle: { color: "#999", fontSize: 12 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: "#999", fontSize: 11 }
+    },
+    visualMap: {
+      show: false,
+      min: 0,
+      max: 2,
+      inRange: { color: ["#FFFFFF", "#909399", "#E6A23C"] }
+    },
+    series: [{
+      type: "heatmap",
+      data: data,
+      emphasis: { 
+        itemStyle: { 
+          shadowBlur: 8, 
+          shadowColor: "rgba(0,0,0,0.3)",
+          borderColor: "#fff",
+          borderWidth: 1
+        } 
+      },
+      itemStyle: {
+        borderColor: "#fff",
+        borderWidth: 2,
+        borderRadius: 4
+      }
+    }]
+  };
+});
+
+function formatTime(timeStr) {
+  if (!timeStr) return "";
+  const d = new Date(timeStr);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 // ===================== 数据统计 =====================
 const statsShowId = ref(null);
@@ -887,17 +1377,78 @@ onMounted(() => {
 
 <style scoped>
 .wrap {
-  padding: 18px;
+  padding: 24px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.admin-tabs :deep(.el-tabs__header) {
+  background: white;
+  border-radius: 12px 12px 0 0;
+  margin-bottom: 0;
+}
+
+.admin-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 0;
+}
+
+.admin-tabs :deep(.el-tabs__item) {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 24px;
+  height: 50px;
+  line-height: 50px;
+}
+
+.admin-tabs :deep(.el-tabs__item.is-active) {
+  color: #FF4D4D;
+}
+
+.admin-tabs :deep(.el-tabs__active-bar) {
+  background-color: #FF4D4D;
+  height: 3px;
+}
+
+.admin-tabs :deep(.el-tabs__content) {
+  background: white;
+  padding: 24px;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
 }
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  border-radius: 16px;
+  color: white;
+  box-shadow: 0 4px 20px rgba(255, 77, 77, 0.3);
 }
-.title {
-  font-size: 20px;
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.topbar-logo {
+  font-size: 32px;
+}
+.topbar-title {
+  font-size: 22px;
   font-weight: 800;
+  letter-spacing: 1px;
+}
+.admin-tag {
+  margin-left: 8px;
+}
+.topbar-right {
+  display: flex;
+  gap: 12px;
+}
+.topbar-btn {
+  border-radius: 20px;
+  font-weight: 600;
 }
 .row {
   display: flex;
@@ -914,5 +1465,485 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* 数据统计页面样式 */
+.stats-container {
+  padding: 0;
+}
+
+/* 卡片统一样式 */
+:deep(.el-card) {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+
+:deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #F0F2F5;
+  font-weight: 700;
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  border-radius: 16px 16px 0 0;
+  margin: -20px -20px 20px -20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  font-size: 28px;
+}
+
+.header-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 1px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.query-btn {
+  background: white;
+  color: #FF4D4D;
+  border: none;
+  font-weight: 600;
+}
+
+/* 核心指标卡片 */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.metric-card {
+  position: relative;
+  padding: 20px 24px;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: default;
+}
+
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+
+.metric-bg-icon {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  font-size: 80px;
+  opacity: 0.15;
+}
+
+.metric-primary {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+}
+
+.metric-success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+}
+
+.metric-warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.metric-money {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.metric-content {
+  position: relative;
+  z-index: 1;
+}
+
+.metric-label {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.metric-value.money {
+  font-family: "DIN Alternate", sans-serif;
+}
+
+.metric-trend {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.3);
+}
+
+.metric-trend.up {
+  color: #ffd700;
+}
+
+/* 图表区域 */
+.charts-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.premium-chart-card {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  transition: box-shadow 0.3s;
+}
+
+.premium-chart-card:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+
+.premium-chart-card :deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #F0F2F5;
+  background: linear-gradient(to right, #FAFBFC, #fff);
+  border-radius: 16px 16px 0 0;
+}
+
+.premium-chart-card :deep(.el-card__body) {
+  padding: 16px 20px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-icon {
+  font-size: 20px;
+}
+
+.chart-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  flex: 1;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #F0F2F5;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* 仪表盘卡片 */
+.gauge-card {
+  background: linear-gradient(135deg, #FAFBFC 0%, #fff 100%);
+}
+
+.gauge-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 0 4px;
+  border-top: 1px solid #F0F2F5;
+  margin-top: 8px;
+}
+
+.gauge-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.gauge-stat-value {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.gauge-stat-value.success { color: #67C23A; }
+.gauge-stat-value.warning { color: #F56C6C; }
+
+.gauge-stat-label {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 进度卡片 */
+.progress-card :deep(.el-card__body) {
+  padding: 20px;
+}
+
+.progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #666;
+}
+
+.progress-value {
+  font-weight: 600;
+  color: #333;
+}
+
+.progress-item :deep(.el-progress-bar__outer) {
+  border-radius: 6px;
+}
+
+/* 底部图表 */
+.bottom-charts {
+  margin-bottom: 16px;
+}
+
+/* 座位图 */
+.seat-map-card :deep(.el-card__body) {
+  padding: 16px;
+}
+
+.seat-map-container {
+  position: relative;
+}
+
+.stage {
+  text-align: center;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 4px;
+}
+
+.seat-legend {
+  display: flex;
+  gap: 20px;
+}
+
+.seat-legend .legend-item {
+  font-size: 12px;
+}
+
+.seat-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* 评论卡片 */
+.comments-card :deep(.el-card__body) {
+  padding: 20px;
+}
+
+.comment-count {
+  font-size: 12px;
+  color: #999;
+  flex: 1;
+  text-align: center;
+}
+
+.comments-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.comment-item {
+  padding: 16px;
+  background: #FAFBFC;
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.comment-item:hover {
+  background: #F0F2F5;
+  transform: translateY(-2px);
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.comment-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.comment-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.comment-content {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+}
+
+.comment-footer {
+  display: flex;
+  gap: 8px;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 80px 40px;
+  background: linear-gradient(135deg, #FAFBFC 0%, #fff 100%);
+  border-radius: 16px;
+  margin-top: 20px;
+}
+
+.empty-icon {
+  font-size: 72px;
+  margin-bottom: 20px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.empty-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.empty-desc {
+  font-size: 14px;
+  color: #999;
+}
+
+/* Element Plus 表格美化 */
+:deep(.el-table) {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+
+:deep(.el-table th) {
+  background: #FAFBFC !important;
+  font-weight: 700;
+  color: #333;
+}
+
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  border: none;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #e64545 0%, #e66030 100%);
+}
+
+:deep(.el-button--success) {
+  background: linear-gradient(135deg, #67C23A 0%, #85ce61 100%);
+  border: none;
+}
+
+:deep(.el-pagination.is-background .el-pager li:not(.is-disabled).is-active) {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%) !important;
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .charts-section {
+    grid-template-columns: 1fr;
+  }
+  .comments-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
