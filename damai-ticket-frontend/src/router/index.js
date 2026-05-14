@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHistory, createWebHashHistory } from "vue-router";
 
 import Login from "../views/Login.vue";
 import EventList from "../views/EventList.vue";
@@ -8,8 +8,14 @@ import Profile from "../views/Profile.vue";
 import Admin from "../views/Admin.vue";
 import AIAssistant from "../views/AIAssistant.vue";
 
+// GitHub Pages 使用 hash 模式，避免路由问题
+const isGitHubPages = window.location.hostname.includes('github.io');
+const history = isGitHubPages 
+    ? createWebHashHistory() 
+    : createWebHistory();
+
 const router = createRouter({
-    history: createWebHistory(),
+    history,
     routes: [
         { path: "/", redirect: "/events" },
         { path: "/login", name: "login", component: Login },
