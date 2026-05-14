@@ -1,35 +1,45 @@
-# Maven
-damai-ticket/target/
-damai-ticket/*.jar
-!.mvn/wrapper/maven-wrapper.jar
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
 
 # Node
-damai-ticket-frontend/node_modules/
-damai-ticket-frontend/dist/
-damai-ticket-frontend/*.local
 node_modules/
+dist/
+pnpm-lock.yaml
 
 # IDE
 .idea/
 *.iml
-*.ipr
-*.iws
 .vscode/
+*.swp
+*.swo
 
-# Logs
+# Build
+BOOT-INF/
 *.log
-logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Uploads (用户上传的文件不应该被提交)
-uploads/*.jpg
-uploads/*.png
-uploads/*.jpeg
-uploads/*.webp
-
-# Temporary files
+# Temp files
 *.tmp
-*.bak
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Scripts (local only)
+*.bat
+*.ps1
+
+# Package files
+package.json
+package-lock.json
+
+# Docs
+*.docx
+*.xlsx
+*.pptx

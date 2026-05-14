@@ -1,587 +1,806 @@
 <template>
-  <div class="wrap">
-    <div class="top">
-      <el-button @click="goBack">← 返回列表</el-button>
-      <div class="title">选座下单</div>
-      <el-button type="primary" @click="goOrders">我的订单</el-button>
+  <div class="seat-page">
+    <!-- 顶部导航 -->
+    <div class="header">
+      <div class="header-content">
+        <button class="back-btn" @click="router.push('/')">← 返回</button>
+        <h1 class="title">{{ show?.title || '选择座位' }}</h1>
+        <div class="user-info" @click="router.push('/profile')">
+          <span class="username">{{ username }}</span>
+        </div>
+      </div>
     </div>
 
-    <el-card class="card">
-      <div class="info">
-        <div>演出ID：{{ showId }}</div>
-        <div>已选：{{ selectedSeats.length }} / {{ maxBuy }} 张</div>
-        <div class="hint">点击座位选择（0可选 / 1已售 / 2锁定）</div>
+    <!-- 演出信息卡片 -->
+    <div class="show-card" v-if="show">
+      <div class="show-image">
+        <img :src="show.imageUrl || '/placeholder.jpg'" :alt="show.title" />
+        <div class="show-badge">{{ show.category || '演出' }}</div>
       </div>
-
-      <!-- ✅ 评分展示 -->
-      <el-card class="rateCard" shadow="never">
-        <div class="rateTop">
-          <div class="rateTitle">观众评分</div>
-
-          <div class="rateSummary">
-            <el-rate :model-value="Number(avgScore)" disabled />
-            <span class="scoreText">{{ Number(avgScore).toFixed(1) }} 分</span>
-            <span class="countText">（{{ ratingCount }} 人评分）</span>
-          </div>
-
-          <el-button size="small" @click="reloadRatings">刷新评价</el-button>
-        </div>
-
-        <div v-if="ratingList.length === 0" class="emptyRate">暂无评价</div>
-
-        <div v-else class="rateList">
-          <div class="rateItem" v-for="r in ratingList" :key="r.id">
-            <div class="rLine1">
-              <el-rate :model-value="r.score" disabled />
-              <span class="rTime">{{ r.createTime || "" }}</span>
-            </div>
-            <div class="rContent">{{ r.content || "（未填写评价内容）" }}</div>
-          </div>
-        </div>
-
-        <div class="ratePager" v-if="ratingTotal > 0">
-          <el-pagination
-              small
-              background
-              layout="prev, pager, next"
-              :total="ratingTotal"
-              :page-size="ratingSize"
-              :current-page="ratingCurrent"
-              @current-change="loadRatings"
-          />
-        </div>
-      </el-card>
-
-      <!-- 分区选择 -->
-      <div class="zone">
-        <el-radio-group v-model="zone" @change="onZoneChange">
-          <el-radio-button label="A">A区</el-radio-button>
-          <el-radio-button label="B">B区</el-radio-button>
-          <el-radio-button label="C">C区</el-radio-button>
-        </el-radio-group>
-
-        <el-button style="margin-left:12px" @click="reload">刷新座位</el-button>
-        <el-button style="margin-left:12px" @click="clearSelected" plain>清空已选</el-button>
-      </div>
-
-      <!-- 舞台（居中） -->
-      <div class="stage-wrap">
-        <div class="stage">舞台 / 场地</div>
-      </div>
-
-      <div class="rows">
-        <div v-for="r in seatRows" :key="r.row" class="row">
-          <div class="row-label">第{{ r.row }}排</div>
-
-          <div class="row-seats">
-            <div
-                v-for="s in r.seats"
-                :key="s.id"
-                class="seat"
-                :class="seatClass(s)"
-                @click="toggleSeat(s)"
-            >
-              <div class="num">{{ s.seatNumber }}</div>
-              <div class="price">￥{{ s.price ?? "-" }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="seatRows.length === 0" class="empty-seats">
-          当前分区暂无座位
+      <div class="show-info">
+        <h2 class="show-title">{{ show.title }}</h2>
+        <p class="show-venue">📍 {{ show.venue || '待定' }}</p>
+        <p class="show-time">🕐 {{ formatDate(show.showDate) }} {{ show.showTime || '' }}</p>
+        <div class="show-rating" v-if="ratingInfo">
+          <span class="stars">⭐ {{ ratingInfo.avgScore }}/5</span>
+          <span class="count">{{ ratingInfo.count }}人评分</span>
         </div>
       </div>
+    </div>
 
-
-      <div v-if="filteredSeats.length===0" style="text-align:center;color:#888;padding:20px 0;">
-        当前分区暂无座位（请检查 seatNumber 格式/分区规则）
+    <!-- 座位统计 -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-value">{{ totalSeats }}</div>
+        <div class="stat-label">总座位</div>
       </div>
+      <div class="stat-item">
+        <div class="stat-value available">{{ availableSeats }}</div>
+        <div class="stat-label">可售</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value sold">{{ soldSeats }}</div>
+        <div class="stat-label">已售</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value selected">{{ selectedSeats.length }}</div>
+        <div class="stat-label">已选</div>
+      </div>
+    </div>
 
-      <div class="bottom">
-        <div class="sum">
-          合计：<b>￥{{ totalAmount }}</b>
-        </div>
+    <!-- 座位区域说明 -->
+    <div class="zone-legend">
+      <div class="zone-item" @click="selectedZone = 'ALL'" :class="{ active: selectedZone === 'ALL' }">
+        <span class="zone-dot all"></span>
+        <span>全部区域</span>
+      </div>
+      <div class="zone-item" @click="selectedZone = 'A'" :class="{ active: selectedZone === 'A' }">
+        <span class="zone-dot zone-a"></span>
+        <span>VIP区 (+200)</span>
+      </div>
+      <div class="zone-item" @click="selectedZone = 'B'" :class="{ active: selectedZone === 'B' }">
+        <span class="zone-dot zone-b"></span>
+        <span>看台A区 (+100)</span>
+      </div>
+      <div class="zone-item" @click="selectedZone = 'C'" :class="{ active: selectedZone === 'C' }">
+        <span class="zone-dot zone-c"></span>
+        <span>看台B区</span>
+      </div>
+    </div>
 
-        <el-button
-            type="success"
-            :disabled="selectedSeats.length === 0"
-            @click="createOrderBatch"
+    <!-- 舞台 -->
+    <div class="stage">
+      <div class="stage-light left"></div>
+      <div class="stage-board">🎭 STAGE 舞 台</div>
+      <div class="stage-light right"></div>
+    </div>
+
+    <!-- 座位网格 -->
+    <div class="seats-container" v-if="seats.length > 0">
+      <div class="seat-grid">
+        <div
+          v-for="seat in filteredSeats"
+          :key="seat.id"
+          class="seat"
+          :class="getSeatClass(seat)"
+          @click="toggleSeat(seat)"
         >
-          下单（{{ selectedSeats.length }}张）
-        </el-button>
+          <span class="seat-number">{{ formatSeatNumber(seat.seatNumber) }}</span>
+          <span class="seat-price">¥{{ seat.price }}</span>
+        </div>
       </div>
-    </el-card>
+      <div class="seats-legend">
+        <div class="legend-item">
+          <span class="legend-dot available"></span>
+          <span>可选</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot selected"></span>
+          <span>已选</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot sold"></span>
+          <span>已售</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot locked"></span>
+          <span>锁定</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="loading-seats" v-else-if="loading">
+      <div class="loading-spinner"></div>
+      <p>正在加载座位信息...</p>
+    </div>
+
+    <div class="no-seats" v-else>
+      <p>暂无座位信息</p>
+      <button class="btn-init" @click="initSeats">初始化座位</button>
+    </div>
+
+    <!-- 底部下单栏 -->
+    <div class="bottom-bar" v-if="selectedSeats.length > 0">
+      <div class="selected-info">
+        <span class="selected-count">已选 {{ selectedSeats.length }} 张</span>
+        <span class="selected-total">合计: ¥{{ totalPrice }}</span>
+      </div>
+      <button class="btn-submit" @click="submitOrder" :disabled="submitting">
+        <span v-if="submitting" class="loading-spinner small"></span>
+        <span v-else>提交订单</span>
+      </button>
+    </div>
+
+    <!-- 提示消息 -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        {{ toast.message }}
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { ElMessage, ElMessageBox } from "element-plus";
-import request, { isDemoMode } from "../api/request";
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import request from '../api/request.js'
 
-const route = useRoute();
-const router = useRouter();
+const router = useRouter()
+const route = useRoute()
 
-const showId = Number(route.params.showId);
-const zone = ref("A");
+const show = ref(null)
+const seats = ref([])
+const selectedSeats = ref([])
+const loading = ref(true)
+const submitting = ref(false)
+const selectedZone = ref('ALL')
+const ratingInfo = ref(null)
 
-// 演示模式座位数据
-const demoSeats = [
-  { id: 1, seatNumber: "A1", status: 0, price: 1280 },
-  { id: 2, seatNumber: "A2", status: 0, price: 1280 },
-  { id: 3, seatNumber: "A3", status: 1, price: 1280 },
-  { id: 4, seatNumber: "A4", status: 0, price: 1280 },
-  { id: 5, seatNumber: "A5", status: 0, price: 1280 },
-  { id: 6, seatNumber: "A6", status: 2, price: 1280 },
-  { id: 7, seatNumber: "A7", status: 0, price: 1280 },
-  { id: 8, seatNumber: "A8", status: 0, price: 1280 },
-  { id: 9, seatNumber: "A9", status: 0, price: 1280 },
-  { id: 10, seatNumber: "A10", status: 0, price: 1280 },
-  { id: 11, seatNumber: "B1", status: 0, price: 980 },
-  { id: 12, seatNumber: "B2", status: 0, price: 980 },
-  { id: 13, seatNumber: "B3", status: 0, price: 980 },
-  { id: 14, seatNumber: "B4", status: 1, price: 980 },
-  { id: 15, seatNumber: "B5", status: 0, price: 980 },
-  { id: 16, seatNumber: "B6", status: 0, price: 980 },
-  { id: 17, seatNumber: "B7", status: 0, price: 980 },
-  { id: 18, seatNumber: "B8", status: 0, price: 980 },
-  { id: 19, seatNumber: "B9", status: 0, price: 980 },
-  { id: 20, seatNumber: "B10", status: 0, price: 980 },
-  { id: 21, seatNumber: "C1", status: 0, price: 680 },
-  { id: 22, seatNumber: "C2", status: 0, price: 680 },
-  { id: 23, seatNumber: "C3", status: 0, price: 680 },
-  { id: 24, seatNumber: "C4", status: 0, price: 680 },
-  { id: 25, seatNumber: "C5", status: 1, price: 680 },
-  { id: 26, seatNumber: "C6", status: 0, price: 680 },
-  { id: 27, seatNumber: "C7", status: 0, price: 680 },
-  { id: 28, seatNumber: "C8", status: 0, price: 680 },
-  { id: 29, seatNumber: "C9", status: 0, price: 680 },
-  { id: 30, seatNumber: "C10", status: 0, price: 680 },
-];
+const username = localStorage.getItem('username') || '未登录'
+const userId = computed(() => parseInt(localStorage.getItem('userId') || '0'))
 
-const seats = ref([]);
-const selectedSeats = ref([]);
+const toast = ref({ show: false, message: '', type: 'info' })
 
-const maxBuy = 10;
-
-// ---------- 路由 ----------
-function goBack() {
-  router.push("/events");
-}
-function goOrders() {
-  router.push("/orders");
+const showToast = (message, type = 'info') => {
+  toast.value = { show: true, message, type }
+  setTimeout(() => {
+    toast.value.show = false
+  }, 3000)
 }
 
-// ---------- 登录校验（带回跳）----------
-function requireLogin() {
-  const uid = localStorage.getItem("userId");
-  if (!uid) {
-    ElMessage.warning("请先登录，再继续下单");
-    router.push({ name: "login", query: { redirect: route.fullPath } });
-    return null;
-  }
-  return Number(uid);
+const formatDate = (date) => {
+  if (!date) return '待定'
+  return new Date(date).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
 }
 
-// ---------- 座位加载 ----------
-async function reload() {
-  // 演示模式使用本地数据
-  if (isDemoMode) {
-    seats.value = demoSeats;
-    return;
-  }
-
-  try {
-    const res = await request.get(`/api/seat/list/${showId}`);
-
-    // 兼容：List 或 R<List>
-    let list = [];
-    if (res.data && typeof res.data === "object" && "code" in res.data) {
-      if (res.data.code !== 0) {
-        ElMessage.error(res.data.msg || "座位加载失败");
-        seats.value = [];
-        return;
-      }
-      list = res.data.data || [];
-    } else {
-      list = res.data || [];
-    }
-
-    seats.value = Array.isArray(list) ? list : [];
-  } catch (e) {
-    // 后端不可用时切换演示模式
-    ElMessage.warning("后端未启动，已切换演示模式");
-    seats.value = demoSeats;
-  }
+const formatSeatNumber = (seatNumber) => {
+  if (!seatNumber) return ''
+  const [row, col] = seatNumber.split('-')
+  return `${row}排${col}座`
 }
 
-function onZoneChange() {
-  selectedSeats.value = [];
+const getZone = (seatNumber) => {
+  if (!seatNumber) return 'C'
+  const row = parseInt(seatNumber.split('-')[0])
+  if (row <= 3) return 'A'
+  if (row <= 6) return 'B'
+  return 'C'
 }
 
-// ---------- 区域过滤 ----------
-// ---------- 分区规则：按座位首字母分 A/B/C ----------
-function parseRow(seatNumber) {
-  const s = String(seatNumber || "");
-  // 匹配 "A1", "B2", "VIP1" 等格式
-  const m = s.match(/^([A-Za-z]+)/);
-  if (m) return m[1].toUpperCase();
-  // 匹配 "10-3", "1排1座" 等格式
-  const m2 = s.match(/^(\d+)/);
-  if (m2) return Number(m2[1]);
-  return null;
-}
-function parseCol(seatNumber) {
-  const s = String(seatNumber || "");
-  // 匹配 "A1", "B2" -> 提取数字部分
-  const m = s.match(/[A-Za-z]*(\d+)$/);
-  if (m) return Number(m[1]);
-  // 匹配 "10-3", "1排1座" -> 提取最后一个数字
-  const m2 = s.match(/(\d+)$/);
-  if (m2) return Number(m2[1]);
-  return null;
-}
-function calcZoneByRow(row) {
-  if (row == null) return "A";
-  // 字母分区
-  if (typeof row === 'string') {
-    if (row.startsWith('A')) return "A";
-    if (row.startsWith('B')) return "B";
-    if (row.startsWith('C')) return "C";
-    return "A";
-  }
-  // 数字分区
-  if (row >= 1 && row <= 3) return "A";
-  if (row >= 4 && row <= 6) return "B";
-  return "C";
-}
-
-// ✅ 当前分区的座位（先筛选，再排序：排号升序、座号升序）
 const filteredSeats = computed(() => {
-  const z = String(zone.value || "A");
-  return seats.value
-      .filter((s) => calcZoneByRow(parseRow(s.seatNumber)) === z)
-      .slice()
-      .sort((a, b) => {
-        const ra = parseRow(a.seatNumber) ?? 9999;
-        const rb = parseRow(b.seatNumber) ?? 9999;
-        if (ra !== rb) return ra - rb;
+  if (selectedZone.value === 'ALL') return seats.value
+  return seats.value.filter(seat => getZone(seat.seatNumber) === selectedZone.value)
+})
 
-        const ca = parseCol(a.seatNumber) ?? 9999;
-        const cb = parseCol(b.seatNumber) ?? 9999;
-        if (ca !== cb) return ca - cb;
+const totalSeats = computed(() => seats.value.length)
+const availableSeats = computed(() => seats.value.filter(s => s.status === 0).length)
+const soldSeats = computed(() => seats.value.filter(s => s.status === 1).length)
+const totalPrice = computed(() => selectedSeats.value.reduce((sum, s) => sum + parseFloat(s.price), 0))
 
-        // 兜底：字符串排序
-        return String(a.seatNumber || "").localeCompare(String(b.seatNumber || ""));
-      });
-});
-
-// ✅ 自动分行：[{ row: 10, seats: [...] }, ...]
-const seatRows = computed(() => {
-  const map = new Map(); // row -> seats[]
-  for (const s of filteredSeats.value) {
-    const r = parseRow(s.seatNumber);
-    const rowKey = r == null ? "Z" : r;
-    if (!map.has(rowKey)) map.set(rowKey, []);
-    map.get(rowKey).push(s);
-  }
-
-  // map 内每排再按座号排序
-  const rows = Array.from(map.entries())
-      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-      .map(([row, list]) => {
-        list.sort((x, y) => (parseCol(x.seatNumber) ?? 9999) - (parseCol(y.seatNumber) ?? 9999));
-        return { row, seats: list };
-      });
-
-  return rows;
-});
-
-
-// ---------- 选座 ----------
-function seatClass(s) {
-  const picked = selectedSeats.value.some((x) => x.id === s.id);
+const getSeatClass = (seat) => {
+  const zone = getZone(seat.seatNumber)
   return {
-    ok: s.status === 0,
-    sold: s.status === 1,
-    lock: s.status === 2,
-    picked,
-  };
+    'available': seat.status === 0,
+    'sold': seat.status === 1,
+    'locked': seat.status === 2 && !selectedSeats.value.find(s => s.id === seat.id),
+    'selected': selectedSeats.value.find(s => s.id === seat.id),
+    'zone-a': zone === 'A',
+    'zone-b': zone === 'B',
+    'zone-c': zone === 'C'
+  }
 }
 
-function toggleSeat(s) {
-  if (s.status !== 0) return;
-
-  const idx = selectedSeats.value.findIndex((x) => x.id === s.id);
-  if (idx >= 0) {
-    selectedSeats.value.splice(idx, 1);
-    return;
+const toggleSeat = (seat) => {
+  if (seat.status !== 0) {
+    showToast(seat.status === 1 ? '该座位已售出' : '该座位已被锁定', 'error')
+    return
   }
 
-  if (selectedSeats.value.length >= maxBuy) {
-    ElMessage.warning(`最多购买${maxBuy}张票`);
-    return;
+  const index = selectedSeats.value.findIndex(s => s.id === seat.id)
+  if (index > -1) {
+    selectedSeats.value.splice(index, 1)
+  } else {
+    if (selectedSeats.value.length >= 10) {
+      showToast('最多只能购买10张票', 'error')
+      return
+    }
+    selectedSeats.value.push(seat)
   }
-
-  selectedSeats.value.push(s);
 }
 
-function clearSelected() {
-  selectedSeats.value = [];
+const loadShow = async () => {
+  try {
+    const showId = route.params.id || route.query.id
+    if (showId) {
+      show.value = await request.get(`/api/show/${showId}`)
+      // 获取评分信息
+      try {
+        const ratingRes = await request.get(`/api/rating/show/${showId}/summary`)
+        if (ratingRes && ratingRes.data) {
+          ratingInfo.value = ratingRes.data
+        }
+      } catch (e) {
+        console.log('暂无评分信息')
+      }
+    }
+  } catch (error) {
+    console.error('加载演出信息失败:', error)
+  }
 }
 
-const totalAmount = computed(() => {
-  return selectedSeats.value.reduce((sum, s) => {
-    const p = Number(s.price || 0);
-    return sum + (isNaN(p) ? 0 : p);
-  }, 0);
-});
+const loadSeats = async () => {
+  loading.value = true
+  try {
+    const showId = route.params.id || route.query.id
+    if (showId) {
+      seats.value = await request.get(`/api/seat/list/${showId}`)
+      if (seats.value.length === 0) {
+        showToast('暂无座位，请稍后刷新或联系管理员初始化', 'warning')
+      }
+    }
+  } catch (error) {
+    console.error('加载座位失败:', error)
+    showToast('加载座位信息失败', 'error')
+  } finally {
+    loading.value = false
+  }
+}
 
-// ---------- 下单（多张）----------
-async function createOrderBatch() {
-  const uid = requireLogin();
-  if (!uid) return;
+const initSeats = async () => {
+  try {
+    const showId = route.params.id || route.query.id
+    if (showId) {
+      await request.post(`/api/seat/init/${showId}`)
+      showToast('座位初始化成功', 'success')
+      await loadSeats()
+    }
+  } catch (error) {
+    console.error('初始化座位失败:', error)
+    showToast('初始化座位失败', 'error')
+  }
+}
 
+const submitOrder = async () => {
   if (selectedSeats.value.length === 0) {
-    ElMessage.warning("请先选择座位");
-    return;
+    showToast('请先选择座位', 'error')
+    return
   }
 
-  try {
-    await ElMessageBox.confirm(
-        `确认下单 ${selectedSeats.value.length} 张票？合计 ￥${totalAmount.value}`,
-        "下单确认",
-        { type: "warning" }
-    );
+  if (!userId.value) {
+    showToast('请先登录', 'error')
+    router.push('/login')
+    return
+  }
 
-    // 演示模式
-    if (isDemoMode) {
-      ElMessage.success(`演示模式：下单成功！共 ${selectedSeats.value.length} 张票，合计 ￥${totalAmount.value}`);
-      selectedSeats.value = [];
-      return;
+  submitting.value = true
+  try {
+    const showId = route.params.id || route.query.id
+    const seatIds = selectedSeats.value.map(s => s.id)
+
+    const res = await request.post('/api/order/createBatch', {
+      userId: userId.value,
+      showId: parseInt(showId),
+      seatIds: seatIds
+    })
+
+    if (res && res.success !== false) {
+      showToast('订单创建成功！正在跳转支付...', 'success')
+      setTimeout(() => {
+        router.push('/orders')
+      }, 1500)
+    } else {
+      showToast(res?.msg || '订单创建失败', 'error')
     }
-
-    const payload = {
-      userId: uid,
-      showId: showId,
-      seatIds: selectedSeats.value.map((s) => s.id),
-    };
-
-    const res = await request.post("/api/order/createBatch", payload);
-
-    if (!res.data?.success) {
-      ElMessage.error(res.data?.msg || "下单失败");
-      return;
-    }
-
-    ElMessage.success(res.data?.msg || "下单成功");
-    selectedSeats.value = [];
-    await reload();
-    await reloadRatings();
-    router.push("/orders");
-  } catch (e) {
-    if (e === "cancel" || e === "close") return;
-    // 后端不可用时切换演示模式
-    ElMessage.success(`演示模式：下单成功！共 ${selectedSeats.value.length} 张票，合计 ￥${totalAmount.value}`);
-    selectedSeats.value = [];
+  } catch (error) {
+    console.error('提交订单失败:', error)
+    showToast('订单提交失败，请重试', 'error')
+  } finally {
+    submitting.value = false
   }
 }
 
-// ===================== 评分展示（平均分 + 评论分页） =====================
-const avgScore = ref(0);
-const ratingCount = ref(0);
-
-const ratingList = ref([]);
-const ratingTotal = ref(0);
-const ratingCurrent = ref(1);
-const ratingSize = ref(5);
-
-async function loadRatingSummary() {
-  try {
-    const res = await request.get(`/api/rating/show/${showId}/summary`);
-    if (!res.data || res.data.code !== 0) return;
-
-    avgScore.value = Number(res.data.data?.avgScore || 0);
-    ratingCount.value = Number(res.data.data?.count || 0);
-  } catch (e) {}
-}
-
-async function loadRatings(page = 1) {
-  ratingCurrent.value = page;
-  try {
-    const res = await request.get(`/api/rating/show/${showId}/page`, {
-      params: { current: ratingCurrent.value, size: ratingSize.value },
-    });
-    if (!res.data || res.data.code !== 0) return;
-
-    const p = res.data.data;
-    ratingList.value = p.records || [];
-    ratingTotal.value = Number(p.total || 0);
-    ratingSize.value = Number(p.size || ratingSize.value);
-  } catch (e) {}
-}
-
-async function reloadRatings() {
-  await loadRatingSummary();
-  await loadRatings(1);
-}
-
-onMounted(() => {
-  if (!showId) {
-    ElMessage.error("演出ID无效");
-    router.push("/events");
-    return;
-  }
-  reload();
-  reloadRatings();
-});
+onMounted(async () => {
+  await loadShow()
+  await loadSeats()
+})
 </script>
 
 <style scoped>
-.wrap { padding: 18px; }
-.top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px; }
-.title { font-size: 18px; font-weight: 900; }
-
-.card { border-radius: 16px; }
-
-.info{
-  display:flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom: 10px;
-}
-.hint{ color:#666; font-size: 12px; }
-
-.zone{
-  margin: 10px 0 12px;
-  display:flex;
-  align-items:center;
-  flex-wrap: wrap;
-  gap: 10px;
+.seat-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  padding-bottom: 100px;
 }
 
-.grid{
-  display:grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 10px;
-  margin-top: 10px;
+.header {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  padding: 20px;
+  color: white;
 }
 
-.seat{
-  border-radius: 14px;
-  padding: 10px 8px;
-  text-align:center;
-  cursor:pointer;
-  border: 1px solid rgba(0,0,0,.08);
-  background: rgba(255,255,255,.9);
-  user-select:none;
-  transition: transform .08s ease;
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.seat:hover{ transform: translateY(-1px); }
 
-.seat .num{ font-weight: 900; }
-.seat .price{ font-size: 12px; color:#666; margin-top: 4px; }
+.back-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
 
-.seat.ok{}
-.seat.sold{ opacity:.45; cursor:not-allowed; }
-.seat.lock{ opacity:.65; cursor:not-allowed; }
-.seat.picked{ border-color: rgba(30,128,255,.65); box-shadow: 0 0 0 3px rgba(30,128,255,.16); }
+.back-btn:hover {
+  background: rgba(255,255,255,0.3);
+}
 
-.rows{
-  margin-top: 14px;
+.title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.user-info {
+  cursor: pointer;
+}
+
+.username {
+  background: rgba(255,255,255,0.2);
+  padding: 6px 12px;
+  border-radius: 15px;
+  font-size: 13px;
+}
+
+.show-card {
+  max-width: 1200px;
+  margin: 20px auto;
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  gap: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.show-image {
+  width: 180px;
+  height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.show-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.show-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #FF4D4D;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.show-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.row{
-  display: grid;
-  grid-template-columns: 96px 1fr;
-  align-items: start;
+.show-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.show-venue, .show-time {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.show-rating {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.row-label{
-  height: 54px;
-  border-radius: 12px;
-  background: rgba(0,0,0,.04);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: #334155;
+.stars {
+  color: #FFB800;
+  font-weight: 600;
 }
 
-.row-seats{
+.count {
+  color: #999;
+  font-size: 13px;
+}
+
+.stats-bar {
+  max-width: 1200px;
+  margin: 20px auto;
   display: grid;
-  grid-template-columns: repeat(10, minmax(92px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
 }
 
-.empty-seats{
-  padding: 24px 0;
+.stat-item {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
   text-align: center;
-  color: #94a3b8;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
-.bottom{
-  margin-top: 14px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap: 10px;
-}
-.sum b{ font-size: 18px; }
-
-.rateCard{
-  margin: 10px 0 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(0,0,0,.06);
-}
-.rateTop{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-}
-.rateTitle{ font-weight: 900; font-size: 14px; }
-.rateSummary{
-  display:flex;
-  align-items:center;
-  gap: 8px;
-  flex: 1;
-  justify-content:center;
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
 }
 
-.stage-wrap{
+.stat-value.available { color: #52c41a; }
+.stat-value.sold { color: #ff4d4f; }
+.stat-value.selected { color: #FF6B35; }
+
+.stat-label {
+  font-size: 13px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.zone-legend {
+  max-width: 1200px;
+  margin: 20px auto;
   display: flex;
-  justify-content: center;
-  margin: 14px 0 10px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.stage{
-  width: 360px;          /* 你想更宽就改这里 */
-  height: 44px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.92);
-  color: #fff;
-  font-weight: 800;
+
+.zone-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  letter-spacing: 2px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.12);
+  gap: 8px;
+  padding: 10px 16px;
+  background: white;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
 }
 
-.scoreText{ font-weight: 900; }
-.countText{ color:#666; }
-.emptyRate{ margin-top: 10px; color:#666; text-align:center; }
-.rateList{ margin-top: 10px; display:flex; flex-direction:column; gap: 10px; }
-.rateItem{ padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.03); }
-.rLine1{ display:flex; align-items:center; justify-content:space-between; }
-.rTime{ color:#666; font-size: 12px; }
-.rContent{ margin-top: 6px; line-height: 1.5; }
-.ratePager{ margin-top: 10px; display:flex; justify-content:flex-end; }
+.zone-item.active {
+  border-color: #FF4D4D;
+  background: #FFF5F5;
+}
+
+.zone-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.zone-dot.all { background: #52c41a; }
+.zone-dot.zone-a { background: #FFD700; }
+.zone-dot.zone-b { background: #87CEEB; }
+.zone-dot.zone-c { background: #90EE90; }
+
+.stage {
+  max-width: 1200px;
+  margin: 30px auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+}
+
+.stage-light {
+  width: 60px;
+  height: 60px;
+  background: radial-gradient(circle, rgba(255,215,0,0.8) 0%, transparent 70%);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.stage-light.left { animation-delay: 0s; }
+.stage-light.right { animation-delay: 1s; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.stage-board {
+  background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+  color: white;
+  padding: 20px 60px;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.seats-container {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 20px;
+}
+
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.seat {
+  background: #f0f0f0;
+  border-radius: 8px;
+  padding: 12px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.seat.available:hover {
+  background: #e8f5e9;
+  border-color: #52c41a;
+  transform: scale(1.05);
+}
+
+.seat.selected {
+  background: #FFF3E0;
+  border-color: #FF6B35;
+  transform: scale(1.05);
+}
+
+.seat.sold {
+  background: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.seat.locked {
+  background: #FFF5F5;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.seat-number {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.seat-price {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.seats-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.legend-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.legend-dot.available { background: #52c41a; }
+.legend-dot.selected { background: #FF6B35; }
+.legend-dot.sold { background: #d9d9d9; }
+.legend-dot.locked { background: #FFF5F5; border: 1px solid #FF4D4F; }
+
+.loading-seats, .no-seats {
+  max-width: 1200px;
+  margin: 60px auto;
+  text-align: center;
+  padding: 60px;
+  background: white;
+  border-radius: 16px;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 77, 77, 0.2);
+  border-top-color: #FF4D4D;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+.loading-spinner.small {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  margin: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-init {
+  margin-top: 16px;
+  padding: 12px 32px;
+  background: #FF4D4D;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-init:hover {
+  background: #FF6B35;
+  transform: scale(1.05);
+}
+
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+  z-index: 100;
+}
+
+.selected-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.selected-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.selected-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: #FF4D4D;
+}
+
+.btn-submit {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+  border: none;
+  padding: 16px 40px;
+  border-radius: 25px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4);
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 77, 77, 0.5);
+}
+
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.toast {
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  background: #333;
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.toast.error {
+  background: #ff4d4f;
+}
+
+.toast.success {
+  background: #52c41a;
+}
+
+.toast.warning {
+  background: #faad14;
+  color: #333;
+}
+
+.toast-enter-active, .toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from, .toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+}
+
+@media (max-width: 768px) {
+  .show-card {
+    flex-direction: column;
+  }
+  
+  .show-image {
+    width: 100%;
+    height: 200px;
+  }
+  
+  .stats-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .seat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  }
+}
 </style>
