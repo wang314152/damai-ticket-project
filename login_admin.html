@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>管理员登录</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body style="font-family: sans-serif; padding: 50px; text-align: center;">
+    <h2>正在登录管理员账号...</h2>
+    <p id="status">连接后端中...</p>
+    
+    <script>
+        async function login() {
+            try {
+                // 直接调用后端API
+                const res = await axios.post('http://localhost:8081/api/auth/login', {
+                    username: 'admin',
+                    password: 'admin123'
+                });
+                
+                if (res.data.code === 0) {
+                    const user = res.data.data;
+                    console.log('登录成功:', user);
+                    
+                    // 设置localStorage
+                    localStorage.setItem('userId', user.id);
+                    localStorage.setItem('username', user.username);
+                    localStorage.setItem('role', user.role);
+                    localStorage.setItem('isAdmin', user.role === 'ADMIN' ? '1' : '0');
+                    localStorage.setItem('token', 'mock-token-' + Date.now());
+                    
+                    document.getElementById('status').innerHTML = '<span style="color:green">登录成功！正在跳转...</span>';
+                    document.getElementById('status').innerHTML += '<br>用户: ' + user.username + '<br>角色: ' + user.role;
+                    
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:7000/';
+                    }, 1000);
+                } else {
+                    document.getElementById('status').innerHTML = '<span style="color:red">登录失败: ' + res.data.msg + '</span>';
+                }
+            } catch (e) {
+                document.getElementById('status').innerHTML = '<span style="color:red">错误: ' + e.message + '</span>';
+            }
+        }
+        login();
+    </script>
+</body>
+</html>

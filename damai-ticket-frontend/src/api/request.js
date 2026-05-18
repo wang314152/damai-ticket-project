@@ -1,34 +1,34 @@
 import axios from "axios";
 
-// 判断是否为演示模式（GitHub Pages 或本地开发）
-const isDemoMode = window.location.hostname.includes('github.io') || 
-                    window.location.hostname === 'localhost' || 
-                    window.location.hostname === '127.0.0.1';
-
-// 本地开发模式需要代理到后端
-const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+export const isDemoMode = true;
 
 const request = axios.create({
-    // 本地开发模式使用相对路径走Vite代理
-    baseURL: isLocalDev ? "" : "",
+    baseURL: 'http://localhost:8081',
     timeout: 30000,
 });
 
+request.interceptors.response.use(
+    (response) => {
+        const data = response.data;
+        if (data && typeof data === 'object' && 'code' in data) {
+            if (data.code === 0) {
+                return data.data;
+            } else {
+                const error = new Error(data.msg || '请求失败');
+                error.response = data;
+                return Promise.reject(error);
+            }
+        }
+        return data;
+    },
+    (error) => Promise.reject(error)
+);
+
 request.interceptors.request.use((config) => {
-    const role = (localStorage.getItem("role") || "").toUpperCase();
-    const isAdmin = localStorage.getItem("isAdmin");
-
-    const ok = role === "ADMIN" || isAdmin === "1";
-
-    if (ok) {
+    if (localStorage.getItem("isAdmin") === "1") {
         config.headers["X-ADMIN"] = "1";
     }
-
-    console.log("[REQ]", config.method?.toUpperCase(), config.url);
-
     return config;
 });
 
-// 导出演示模式标志
-export { isDemoMode, isLocalDev };
 export default request;

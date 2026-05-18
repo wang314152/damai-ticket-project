@@ -1,24 +1,26 @@
 <template>
   <div class="app-shell">
     <router-view :key="$route.fullPath" />
+    <FloatingAI />
   </div>
 </template>
 
 <script setup>
+import FloatingAI from './views/FloatingAI.vue'
 </script>
 
 <style>
 /* 全局基础样式 */
 :root {
-  --damai-primary: #FF4D4D;
-  --damai-secondary: #FF6B35;
-  --damai-dark: #1a1a1a;
-  --damai-gray: #666;
-  --damai-light-gray: #999;
-  --damai-bg: #f5f5f5;
-  --damai-border: #eee;
-  --damai-card-shadow: 0 2px 12px rgba(0,0,0,0.06);
-  --damai-card-hover-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  --damai-primary: #6366F1;
+  --damai-secondary: #8B5CF6;
+  --damai-dark: #1e293b;
+  --damai-gray: #64748b;
+  --damai-light-gray: #94a3b8;
+  --damai-bg: #f1f5f9;
+  --damai-border: #e2e8f0;
+  --damai-card-shadow: 0 2px 12px rgba(99, 102, 241, 0.06);
+  --damai-card-hover-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
   --damai-radius: 12px;
 }
 
@@ -45,14 +47,14 @@ html, body, #app {
 .el-button--primary {
   --el-button-bg-color: var(--damai-primary);
   --el-button-border-color: var(--damai-primary);
-  --el-button-hover-bg-color: #ff6666;
-  --el-button-hover-border-color: #ff6666;
+  --el-button-hover-bg-color: #818CF8;
+  --el-button-hover-border-color: #818CF8;
 }
 
 .el-button--primary:focus,
 .el-button--primary:hover {
-  background: #ff6666 !important;
-  border-color: #ff6666 !important;
+  background: #818CF8 !important;
+  border-color: #818CF8 !important;
 }
 
 .el-rate__icon {

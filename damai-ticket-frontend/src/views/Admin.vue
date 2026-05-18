@@ -171,111 +171,543 @@
 
       <!-- ===================== 订单管理 ===================== -->
       <el-tab-pane label="📋 订单管理" name="order">
-        <el-table :data="orders" border>
-          <el-table-column prop="id" label="订单ID" width="90" />
-          <el-table-column prop="userId" label="用户ID" width="90" />
-          <el-table-column prop="showId" label="演出ID" width="90" />
-          <el-table-column prop="seatId" label="座位ID" width="90" />
-          <el-table-column prop="amount" label="金额" width="120" />
-          <el-table-column prop="status" label="状态" width="120">
-            <template #default="scope">
-              <el-tag v-if="scope.row.status===0" type="warning">未支付</el-tag>
-              <el-tag v-else-if="scope.row.status===1" type="success">已支付</el-tag>
-              <el-tag v-else type="info">已取消</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createTime" label="创建时间" width="180" />
-        </el-table>
+        <!-- 订单统计概览 -->
+        <div class="order-dashboard">
+          <div class="dashboard-header">
+            <h3>📊 订单概览</h3>
+            <div class="dashboard-actions">
+              <el-button size="small" @click="loadOrders">🔄 刷新</el-button>
+              <el-button size="small" type="primary" @click="exportOrders">📥 导出Excel</el-button>
+              <el-button size="small" type="danger" @click="batchCancelOrders" v-if="selectedOrders.length > 0">
+                🗑️ 批量取消 ({{ selectedOrders.length }})
+              </el-button>
+              <el-button size="small" type="success" @click="batchConfirmOrders" v-if="selectedOrders.length > 0">
+                ✅ 批量确认 ({{ selectedOrders.length }})
+              </el-button>
+            </div>
+          </div>
+          
+          <div class="stats-row">
+            <div class="stat-box" @click="orderStatusFilter = null; filterOrders()">
+              <div class="stat-icon-box all">📦</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ orders.length }}</div>
+                <div class="stat-text">全部订单</div>
+                <div class="stat-percent">100%</div>
+              </div>
+            </div>
+            <div class="stat-box" @click="orderStatusFilter = 0; filterOrders()">
+              <div class="stat-icon-box pending">⏳</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ getOrderCountByStatus(0) }}</div>
+                <div class="stat-text">待支付</div>
+                <div class="stat-percent">{{ ((getOrderCountByStatus(0) / orders.length) * 100 || 0).toFixed(1) }}%</div>
+              </div>
+            </div>
+            <div class="stat-box" @click="orderStatusFilter = 1; filterOrders()">
+              <div class="stat-icon-box success">✅</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ getOrderCountByStatus(1) }}</div>
+                <div class="stat-text">已完成</div>
+                <div class="stat-percent success">{{ ((getOrderCountByStatus(1) / orders.length) * 100 || 0).toFixed(1) }}%</div>
+              </div>
+            </div>
+            <div class="stat-box" @click="orderStatusFilter = 2; filterOrders()">
+              <div class="stat-icon-box danger">❌</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ getOrderCountByStatus(2) }}</div>
+                <div class="stat-text">已取消</div>
+                <div class="stat-percent">{{ ((getOrderCountByStatus(2) / orders.length) * 100 || 0).toFixed(1) }}%</div>
+              </div>
+            </div>
+            <div class="stat-box revenue">
+              <div class="stat-icon-box money">💰</div>
+              <div class="stat-content">
+                <div class="stat-number">¥{{ getTotalRevenue() }}</div>
+                <div class="stat-text">总收入</div>
+                <div class="stat-percent">已完成订单</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 高级筛选面板 -->
+        <div class="filter-panel">
+          <div class="filter-row">
+            <div class="filter-group">
+              <label>关键词搜索</label>
+              <el-input v-model="orderKeyword" placeholder="订单号/用户ID/演出ID" clearable style="width: 200px" @input="filterOrders">
+                <template #prefix><span>🔍</span></template>
+              </el-input>
+            </div>
+            <div class="filter-group">
+              <label>订单状态</label>
+              <el-select v-model="orderStatusFilter" placeholder="全部" clearable style="width: 120px" @change="filterOrders">
+                <el-option label="全部" :value="null" />
+                <el-option label="⏳ 待支付" :value="0" />
+                <el-option label="✅ 已完成" :value="1" />
+                <el-option label="❌ 已取消" :value="2" />
+              </el-select>
+            </div>
+            <div class="filter-group">
+              <label>日期范围</label>
+              <el-date-picker v-model="orderDateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 260px" @change="filterOrders" />
+            </div>
+            <div class="filter-group">
+              <label>金额范围</label>
+              <el-input-number v-model="orderMinAmount" :min="0" placeholder="最低" style="width: 100px" @change="filterOrders" /> -
+              <el-input-number v-model="orderMaxAmount" :min="0" placeholder="最高" style="width: 100px" @change="filterOrders" />
+            </div>
+            <div class="filter-actions">
+              <el-button size="small" type="primary" @click="filterOrders">应用筛选</el-button>
+              <el-button size="small" @click="resetOrderFilter">重置</el-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 订单列表 -->
+        <div class="order-list-container">
+          <el-table :data="paginatedOrders" border stripe @selection-change="handleSelectionChange" v-loading="ordersLoading" :row-class-name="getRowClass">
+            <el-table-column type="selection" width="50" />
+            <el-table-column prop="id" label="订单号" width="100" fixed>
+              <template #default="{ row }">
+                <span class="order-no">#{{ row.id }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="userId" label="用户" width="100">
+              <template #default="{ row }">
+                <el-tag size="small" type="info">{{ row.userId }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="showId" label="演出" width="180">
+              <template #default="{ row }">
+                <div class="show-name-cell">
+                  <el-tag size="small" type="warning" class="show-id-tag">#{{ row.showId }}</el-tag>
+                  <span class="show-title-text">{{ getShowTitle(row.showId) }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="seatId" label="座位" width="100" />
+            <el-table-column prop="amount" label="金额" width="120" sortable>
+              <template #default="{ row }">
+                <span class="amount-text">¥{{ row.amount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="110" sortable>
+              <template #default="{ row }">
+                <el-tag :type="row.status === 0 ? 'warning' : row.status === 1 ? 'success' : 'info'" size="small">
+                  {{ row.status === 0 ? '⏳ 待支付' : row.status === 1 ? '✅ 已完成' : '❌ 已取消' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="createTime" label="下单时间" width="160" sortable>
+              <template #default="{ row }">
+                <span class="time-text">{{ formatDateTime(row.createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="订单追踪" width="200">
+              <template #default="{ row }">
+                <div class="order-timeline-mini">
+                  <span class="timeline-dot" :class="{ active: row.createTime }">创</span>
+                  <span class="timeline-line"></span>
+                  <span class="timeline-dot" :class="{ active: row.status >= 1 }">付</span>
+                  <span class="timeline-line"></span>
+                  <span class="timeline-dot" :class="{ active: row.status >= 2 }">完</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="260" fixed="right">
+              <template #default="{ row }">
+                <div class="action-btns">
+                  <el-button size="small" type="primary" plain @click="openOrderDetail(row)">详情</el-button>
+                  <el-button size="small" type="success" v-if="row.status === 0" @click="handleOrderAction(row, 'pay')">确认支付</el-button>
+                  <el-button size="small" type="warning" v-if="row.status === 1" @click="handleOrderAction(row, 'refund')">退款</el-button>
+                  <el-button size="small" type="danger" v-if="row.status === 0" @click="handleOrderAction(row, 'cancel')">取消</el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+          
+          <!-- 分页 -->
+          <div class="pagination-wrapper">
+            <span class="pagination-info">共 {{ filteredOrders.length }} 条订单，已选 {{ selectedOrders.length }} 条</span>
+            <el-pagination 
+              background 
+              layout="prev, pager, next, jumper, total" 
+              :total="filteredOrders.length" 
+              :page-size="orderPageSize" 
+              :current-page="orderCurrentPage"
+              @current-change="handleOrderPageChange"
+            />
+          </div>
+        </div>
+
+        <!-- 订单详情弹窗 -->
+        <el-dialog v-model="orderDetailVisible" title="订单详情" width="700px" class="order-detail-dialog">
+          <div v-if="currentOrder" class="order-detail-content">
+            <!-- 基本信息卡片 -->
+            <div class="detail-section">
+              <div class="section-title">📋 基本信息</div>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">订单编号</span>
+                  <span class="detail-value highlight">#{{ currentOrder.id }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">订单状态</span>
+                  <el-tag :type="currentOrder.status === 0 ? 'warning' : currentOrder.status === 1 ? 'success' : 'info'">
+                    {{ currentOrder.status === 0 ? '⏳ 待支付' : currentOrder.status === 1 ? '✅ 已完成' : '❌ 已取消' }}
+                  </el-tag>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">下单时间</span>
+                  <span class="detail-value">{{ formatDateTime(currentOrder.createTime) }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">订单金额</span>
+                  <span class="detail-value price">¥{{ currentOrder.amount }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 关联信息卡片 -->
+            <div class="detail-section">
+              <div class="section-title">👤 关联信息</div>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">用户ID</span>
+                  <span class="detail-value">{{ currentOrder.userId }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">关联演出</span>
+                  <span class="detail-value show-highlight">{{ getShowTitle(currentOrder.showId) }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">演出ID</span>
+                  <span class="detail-value">#{{ currentOrder.showId }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">座位ID</span>
+                  <span class="detail-value">{{ currentOrder.seatId }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 订单时间轴 -->
+            <div class="detail-section">
+              <div class="section-title">📍 订单时间轴</div>
+              <div class="order-timeline">
+                <div class="timeline-item" :class="{ active: true, completed: true }">
+                  <div class="timeline-icon">📝</div>
+                  <div class="timeline-content">
+                    <div class="timeline-title">订单创建</div>
+                    <div class="timeline-time">{{ formatDateTime(currentOrder.createTime) }}</div>
+                  </div>
+                </div>
+                <div class="timeline-item" :class="{ active: currentOrder.status >= 1, completed: currentOrder.status > 1 }">
+                  <div class="timeline-icon">{{ currentOrder.status >= 1 ? '💳' : '⏳' }}</div>
+                  <div class="timeline-content">
+                    <div class="timeline-title">{{ currentOrder.status >= 1 ? '支付完成' : '等待支付' }}</div>
+                    <div class="timeline-time" v-if="currentOrder.status >= 1">{{ formatDateTime(currentOrder.payTime || currentOrder.createTime) }}</div>
+                  </div>
+                </div>
+                <div class="timeline-item" :class="{ active: currentOrder.status === 1, completed: currentOrder.status === 2 }">
+                  <div class="timeline-icon">{{ currentOrder.status === 1 ? '✅' : currentOrder.status === 2 ? '❌' : '⏳' }}</div>
+                  <div class="timeline-content">
+                    <div class="timeline-title">{{ currentOrder.status === 1 ? '订单完成' : currentOrder.status === 2 ? '订单取消' : '等待完成' }}</div>
+                    <div class="timeline-time" v-if="currentOrder.status >= 1">{{ formatDateTime(currentOrder.updateTime || currentOrder.createTime) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <template #footer>
+            <el-button @click="orderDetailVisible = false">关闭</el-button>
+            <el-button type="primary" v-if="currentOrder?.status === 0" @click="handleOrderAction(currentOrder, 'pay')">确认支付</el-button>
+            <el-button type="danger" v-if="currentOrder?.status === 0" @click="handleOrderAction(currentOrder, 'cancel')">取消订单</el-button>
+          </template>
+        </el-dialog>
       </el-tab-pane>
 
       <!-- 用户管理 -->
       <el-tab-pane label="👥 用户管理" name="user">
-        <el-card>
-          <div class="row">
-            <div class="left">
-              <el-input
-                  v-model="userKeyword"
-                  placeholder="按用户名搜索（模糊）"
-                  style="width: 260px"
-                  clearable
-                  @keyup.enter="loadUsers(1)"
-              />
-              <el-button type="primary" @click="loadUsers(1)">搜索</el-button>
-              <el-button @click="resetUserSearch">重置</el-button>
-            </div>
-
-            <div class="right">
-              <el-button @click="loadUsers(currentUserPage)">刷新</el-button>
+        <!-- 用户统计概览 -->
+        <div class="user-dashboard">
+          <div class="dashboard-header">
+            <h3>👥 用户概览</h3>
+            <div class="dashboard-actions">
+              <el-button size="small" @click="loadUsers(1)">🔄 刷新</el-button>
+              <el-button size="small" type="primary" @click="exportUsers">📥 导出用户</el-button>
+              <el-button size="small" type="success" @click="openAddUser" v-if="false">➕ 新增用户</el-button>
             </div>
           </div>
-        </el-card>
+          
+          <div class="stats-row">
+            <div class="stat-box" @click="userRoleFilter = null; filterUsers()">
+              <div class="stat-icon-box all">👤</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ users.length }}</div>
+                <div class="stat-text">全部用户</div>
+                <div class="stat-percent">100%</div>
+              </div>
+            </div>
+            <div class="stat-box" @click="userRoleFilter = 'USER'; filterUsers()">
+              <div class="stat-icon-box pending">🎫</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ getUserCountByRole('USER') }}</div>
+                <div class="stat-text">普通用户</div>
+                <div class="stat-percent">{{ getUserPercent('USER') }}%</div>
+              </div>
+            </div>
+            <div class="stat-box" @click="userRoleFilter = 'ADMIN'; filterUsers()">
+              <div class="stat-icon-box danger">🔐</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ getUserCountByRole('ADMIN') }}</div>
+                <div class="stat-text">管理员</div>
+                <div class="stat-percent">{{ getUserPercent('ADMIN') }}%</div>
+              </div>
+            </div>
+            <div class="stat-box revenue">
+              <div class="stat-icon-box money">📊</div>
+              <div class="stat-content">
+                <div class="stat-number">{{ getTotalUserOrders() }}</div>
+                <div class="stat-text">用户订单总数</div>
+                <div class="stat-percent">活跃度指标</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <el-card style="margin-top: 12px;">
-          <el-table
-              :data="users"
-              border
-              row-key="id"
-              :expand-row-keys="expandKeys"
-              @expand-change="onExpandChange"
+        <!-- 高级筛选面板 -->
+        <div class="filter-panel">
+          <div class="filter-row">
+            <div class="filter-group">
+              <label>关键词搜索</label>
+              <el-input v-model="userKeyword" placeholder="用户名/昵称/手机/邮箱" clearable style="width: 200px" @input="filterUsers">
+                <template #prefix><span>🔍</span></template>
+              </el-input>
+            </div>
+            <div class="filter-group">
+              <label>用户角色</label>
+              <el-select v-model="userRoleFilter" placeholder="全部角色" clearable style="width: 120px" @change="filterUsers">
+                <el-option label="全部" :value="null" />
+                <el-option label="🔐 管理员" value="ADMIN" />
+                <el-option label="🎫 普通用户" value="USER" />
+              </el-select>
+            </div>
+            <div class="filter-group">
+              <label>注册时间</label>
+              <el-date-picker v-model="userDateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 260px" @change="filterUsers" />
+            </div>
+            <div class="filter-actions">
+              <el-button size="small" type="primary" @click="filterUsers">应用筛选</el-button>
+              <el-button size="small" @click="resetUserFilter">重置</el-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 用户列表 -->
+        <div class="user-list-container">
+          <el-table 
+            :data="paginatedUsers" 
+            border 
+            stripe 
+            v-loading="usersLoading"
+            @selection-change="handleUserSelectionChange"
           >
-            <el-table-column type="expand">
-              <template #default="scope">
-                <div style="padding: 10px 12px;">
-                  <div style="font-weight:800;margin-bottom:8px;">
-                    用户 {{ scope.row.username }} 的订单明细
-                  </div>
-
-                  <el-table
-                      :data="userOrdersMap[scope.row.id] || []"
-                      size="small"
-                      border
-                      v-loading="ordersLoadingMap[scope.row.id] === true"
-                  >
-                    <el-table-column prop="orderId" label="订单ID" width="90" />
-                    <el-table-column prop="showTitle" label="演出" min-width="180" />
-                    <el-table-column prop="seatNumber" label="座位" width="100" />
-                    <el-table-column prop="amount" label="金额" width="100" />
-                    <el-table-column prop="status" label="支付状态" width="120">
-                      <template #default="s">
-                        <el-tag v-if="s.row.status===0" type="warning">未支付</el-tag>
-                        <el-tag v-else-if="s.row.status===1" type="success">已支付</el-tag>
-                        <el-tag v-else type="info">已取消</el-tag>
-                      </template>
-                    </el-table-column>
-                    <el-table-column prop="createTime" label="下单时间" width="180" />
-                  </el-table>
-
-                  <div v-if="(userOrdersMap[scope.row.id] || []).length===0" style="color:#666;margin-top:10px;">
-                    暂无订单
+            <el-table-column type="selection" width="50" />
+            <el-table-column prop="id" label="用户ID" width="100" fixed>
+              <template #default="{ row }">
+                <span class="user-id">#{{ row.id }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="username" label="用户名" width="140">
+              <template #default="{ row }">
+                <div class="user-cell">
+                  <el-avatar :size="36" :style="'background: linear-gradient(135deg, ' + getAvatarColor(row.username) + ')'">
+                    {{ row.username?.charAt(0)?.toUpperCase() || 'U' }}
+                  </el-avatar>
+                  <div class="user-info-mini">
+                    <span class="username-text">{{ row.username }}</span>
+                    <span class="nickname-text">{{ row.nickname || '-' }}</span>
                   </div>
                 </div>
               </template>
             </el-table-column>
-
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="username" label="用户名" min-width="140" />
-            <el-table-column prop="role" label="角色" width="110">
-              <template #default="scope">
-                <el-tag v-if="(scope.row.role||'').toUpperCase()==='ADMIN'" type="danger">ADMIN</el-tag>
-                <el-tag v-else type="info">USER</el-tag>
+            <el-table-column prop="role" label="角色" width="110" sortable>
+              <template #default="{ row }">
+                <el-tag :type="(row.role||'').toUpperCase()==='ADMIN' ? 'danger' : 'info'" effect="dark" size="small">
+                  {{ (row.role||'').toUpperCase()==='ADMIN' ? '🔐 管理员' : '🎫 普通用户' }}
+                </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="phone" label="手机号" width="150" />
-            <el-table-column prop="email" label="邮箱" min-width="160" />
-            <el-table-column prop="nickname" label="昵称" min-width="120" />
+            <el-table-column prop="phone" label="手机号" width="140">
+              <template #default="{ row }">
+                <span class="contact-text">{{ row.phone || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="email" label="邮箱" min-width="180">
+              <template #default="{ row }">
+                <span class="contact-text">{{ row.email || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="orderCount" label="订单数" width="100">
+              <template #default="{ row }">
+                <el-badge :value="getUserOrderCount(row.id)" type="primary" :max="99" />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <div class="action-btns">
+                  <el-button size="small" type="primary" plain @click="openUserDetail(row)">详情</el-button>
+                  <el-button size="small" type="info" plain @click="viewUserOrders(row)">订单</el-button>
+                </div>
+              </template>
+            </el-table-column>
           </el-table>
-
-          <div style="display:flex; justify-content:flex-end; margin-top: 12px;">
-            <el-pagination
-                background
-                layout="prev, pager, next, jumper, total"
-                :total="userTotal"
-                :page-size="userPageSize"
-                :current-page="currentUserPage"
-                @current-change="loadUsers"
+          
+          <!-- 分页 -->
+          <div class="pagination-wrapper">
+            <span class="pagination-info">共 {{ filteredUsers.length }} 位用户，已选 {{ selectedUsers.length }} 位</span>
+            <el-pagination 
+              background 
+              layout="prev, pager, next, jumper, total" 
+              :total="filteredUsers.length" 
+              :page-size="userPageSize" 
+              :current-page="userCurrentPage"
+              @current-change="handleUserPageChange"
             />
           </div>
-        </el-card>
+        </div>
+
+        <!-- 用户详情弹窗 -->
+        <el-dialog v-model="userDetailVisible" title="用户详情" width="650px" class="user-detail-dialog">
+          <div v-if="currentUser" class="user-detail-content">
+            <!-- 用户信息卡片 -->
+            <div class="detail-section">
+              <div class="section-title">👤 基本信息</div>
+              <div class="user-profile-header">
+                <el-avatar :size="80" :style="'background: linear-gradient(135deg, ' + getAvatarColor(currentUser.username) + ')'">
+                  {{ currentUser.username?.charAt(0)?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <div class="profile-info">
+                  <div class="profile-name">{{ currentUser.username }}</div>
+                  <div class="profile-nickname">{{ currentUser.nickname || '暂无昵称' }}</div>
+                  <el-tag :type="(currentUser.role||'').toUpperCase()==='ADMIN' ? 'danger' : 'info'" effect="dark">
+                    {{ (currentUser.role||'').toUpperCase()==='ADMIN' ? '🔐 管理员' : '🎫 普通用户' }}
+                  </el-tag>
+                </div>
+              </div>
+            </div>
+
+            <!-- 联系信息 -->
+            <div class="detail-section">
+              <div class="section-title">📞 联系信息</div>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">用户ID</span>
+                  <span class="detail-value highlight">#{{ currentUser.id }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">手机号</span>
+                  <span class="detail-value">{{ currentUser.phone || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">邮箱</span>
+                  <span class="detail-value">{{ currentUser.email || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">注册时间</span>
+                  <span class="detail-value">{{ formatDateTime(currentUser.createTime) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 订单统计 -->
+            <div class="detail-section">
+              <div class="section-title">📋 订单统计</div>
+              <div class="user-order-stats">
+                <div class="order-stat-item">
+                  <div class="order-stat-number">{{ getUserOrderCount(currentUser.id) }}</div>
+                  <div class="order-stat-label">总订单数</div>
+                </div>
+                <div class="order-stat-item success">
+                  <div class="order-stat-number">{{ getUserOrderCountByStatus(currentUser.id, 1) }}</div>
+                  <div class="order-stat-label">已完成</div>
+                </div>
+                <div class="order-stat-item warning">
+                  <div class="order-stat-number">{{ getUserOrderCountByStatus(currentUser.id, 0) }}</div>
+                  <div class="order-stat-label">待支付</div>
+                </div>
+                <div class="order-stat-item danger">
+                  <div class="order-stat-number">{{ getUserOrderCountByStatus(currentUser.id, 2) }}</div>
+                  <div class="order-stat-label">已取消</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 最近订单 -->
+            <div class="detail-section" v-if="currentUserOrders.length > 0">
+              <div class="section-title">🛒 最近订单</div>
+              <el-table :data="currentUserOrders.slice(0, 5)" size="small" border>
+                <el-table-column prop="id" label="订单号" width="80">
+                  <template #default="{ row }">
+                    <span class="order-no-small">#{{ row.id }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="showTitle" label="演出" min-width="120" />
+                <el-table-column prop="amount" label="金额" width="90">
+                  <template #default="{ row }">
+                    <span class="amount-text-small">¥{{ row.amount }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="90">
+                  <template #default="{ row }">
+                    <el-tag :type="row.status === 0 ? 'warning' : row.status === 1 ? 'success' : 'info'" size="small">
+                      {{ row.status === 0 ? '待支付' : row.status === 1 ? '已完成' : '已取消' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+          <template #footer>
+            <el-button @click="userDetailVisible = false">关闭</el-button>
+            <el-button type="primary" @click="viewUserOrders(currentUser)">查看全部订单</el-button>
+          </template>
+        </el-dialog>
+
+        <!-- 用户订单弹窗 -->
+        <el-dialog v-model="userOrdersVisible" :title="'📋 ' + (currentUser?.username || '') + ' 的订单明细'" width="900px">
+          <el-table :data="currentUserOrders" border stripe v-loading="userOrdersLoading">
+            <el-table-column prop="id" label="订单ID" width="90">
+              <template #default="{ row }">
+                <span class="order-no-small">#{{ row.id }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="showTitle" label="演出" min-width="180" />
+            <el-table-column prop="seatNumber" label="座位" width="100" />
+            <el-table-column prop="amount" label="金额" width="100">
+              <template #default="{ row }">
+                <span class="amount-text-small">¥{{ row.amount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="支付状态" width="110">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 0 ? 'warning' : row.status === 1 ? 'success' : 'info'" size="small">
+                  {{ row.status === 0 ? '⏳ 待支付' : row.status === 1 ? '✅ 已完成' : '❌ 已取消' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="createTime" label="下单时间" width="160" />
+          </el-table>
+          <div v-if="currentUserOrders.length === 0 && !userOrdersLoading" style="text-align:center;padding:40px;color:#999;">
+            暂无订单记录
+          </div>
+          <template #footer>
+            <el-button @click="userOrdersVisible = false">关闭</el-button>
+          </template>
+        </el-dialog>
       </el-tab-pane>
 
 
@@ -908,30 +1340,21 @@ async function loadRatings(page = 1) {
   if (!statsShowId.value) return;
   ratingPage.value.current = page;
 
-  const res = await request.get(`/api/rating/show/${statsShowId.value}/page`, {
-    params: { current: ratingPage.value.current, size: ratingPage.value.size },
-  });
+  try {
+    const res = await request.get(`/api/rating/show/${statsShowId.value}/page`, {
+      params: { current: ratingPage.value.current, size: ratingPage.value.size },
+    });
 
-  if (!res.data || res.data.code !== 0) {
-    return ElMessage.error(res.data?.msg || "获取评价失败");
+    ratingPage.value = res || { records: [], total: 0, current: 1, size: 5 };
+  } catch (e) {
+    console.error("获取评价失败:", e);
+    ratingPage.value = { records: [], total: 0, current: 1, size: 5 };
   }
-  ratingPage.value = res.data.data;
 }
 
 async function loadStats() {
   if (!statsShowId.value) {
     return ElMessage.warning("请选择一个演出");
-  }
-
-  // 演示模式
-  if (isDemoMode) {
-    stats.value = { ...demoStats, showId: statsShowId.value };
-    ratingPage.value = { records: [
-      { id: 1, userId: 2, orderId: 1, score: 5, content: "非常棒的演出！", createTime: "2026-05-05 18:00:00" },
-      { id: 2, userId: 3, orderId: 2, score: 4, content: "还不错，推荐！", createTime: "2026-05-06 19:00:00" },
-    ], total: 2, current: 1, size: 5 };
-    ElMessage.success("演示模式：统计加载成功！");
-    return;
   }
 
   try {
@@ -940,115 +1363,239 @@ async function loadStats() {
     const res = await request.get(`/api/admin/stats/show/${statsShowId.value}`);
     console.log("[stats] response =", res);
 
-    if (!res.data || res.data.code !== 0) {
-      return ElMessage.error(res.data?.msg || "获取统计失败（后端返回非成功）");
-    }
-
-    stats.value = res.data.data;
+    stats.value = res;
     await loadRatings(1);
     ElMessage.success("统计加载成功");
   } catch (e) {
     console.error("[stats] error =", e);
-    ElMessage.warning("后端未启动，已切换演示模式");
-    stats.value = { ...demoStats, showId: statsShowId.value };
-    ratingPage.value = { records: [
-      { id: 1, userId: 2, orderId: 1, score: 5, content: "非常棒的演出！", createTime: "2026-05-05 18:00:00" },
-    ], total: 1, current: 1, size: 5 };
+    ElMessage.warning("获取统计失败：" + (e.message || "未知错误"));
   }
 }
 
 // ===================== 用户管理（分页/搜索 + 展开查看订单） =====================
 const users = ref([]);
+const allUsers = ref([]); // 保存所有用户用于统计
 const userKeyword = ref("");
 const currentUserPage = ref(1);
 const userPageSize = ref(10);
 const userTotal = ref(0);
+const usersLoading = ref(false);
 
-// 展开行控制
-const expandKeys = ref([]); // 当前展开的 userId 列表（我这里做成一次只展开一个）
-const userOrdersMap = reactive({}); // userId -> orders[]
-const ordersLoadingMap = reactive({}); // userId -> true/false
+// 筛选相关
+const userRoleFilter = ref(null);
+const userDateRange = ref(null);
+
+// 用户详情弹窗
+const userDetailVisible = ref(false);
+const currentUser = ref(null);
+
+// 用户订单弹窗
+const userOrdersVisible = ref(false);
+const currentUserOrders = ref([]);
+const userOrdersLoading = ref(false);
+
+// 选中的用户
+const selectedUsers = ref([]);
+
+// 所有用户订单映射（用于统计）
+const allUserOrdersMap = reactive({}); // userId -> orders[]
+
+const filteredUsers = computed(() => {
+  let result = allUsers.value;
+  
+  // 角色筛选
+  if (userRoleFilter.value) {
+    result = result.filter(u => (u.role || '').toUpperCase() === userRoleFilter.value.toUpperCase());
+  }
+  
+  // 关键词搜索
+  if (userKeyword.value) {
+    const kw = userKeyword.value.toLowerCase();
+    result = result.filter(u => 
+      (u.username || '').toLowerCase().includes(kw) ||
+      (u.nickname || '').toLowerCase().includes(kw) ||
+      (u.phone || '').includes(kw) ||
+      (u.email || '').toLowerCase().includes(kw)
+    );
+  }
+  
+  // 日期范围筛选
+  if (userDateRange.value && userDateRange.value.length === 2) {
+    const [startDate, endDate] = userDateRange.value;
+    result = result.filter(u => {
+      if (!u.createTime) return false;
+      const regDate = u.createTime.split(' ')[0];
+      return regDate >= startDate && regDate <= endDate;
+    });
+  }
+  
+  return result;
+});
+
+const paginatedUsers = computed(() => {
+  const start = (currentUserPage.value - 1) * userPageSize.value;
+  const end = start + userPageSize.value;
+  return filteredUsers.value.slice(start, end);
+});
+
+// 统计函数
+function getUserCountByRole(role) {
+  return allUsers.value.filter(u => (u.role || '').toUpperCase() === role.toUpperCase()).length;
+}
+
+function getUserPercent(role) {
+  const total = allUsers.value.length;
+  if (total === 0) return 0;
+  return ((getUserCountByRole(role) / total) * 100).toFixed(1);
+}
+
+function getTotalUserOrders() {
+  return Object.values(allUserOrdersMap).reduce((sum, orders) => sum + (orders?.length || 0), 0);
+}
+
+function getUserOrderCount(userId) {
+  return allUserOrdersMap[userId]?.length || 0;
+}
+
+function getUserOrderCountByStatus(userId, status) {
+  const orders = allUserOrdersMap[userId] || [];
+  return orders.filter(o => o.status === status).length;
+}
+
+// 头像颜色生成
+function getAvatarColor(username) {
+  const colors = [
+    '#667eea, #764ba2', '#f093fb, #f5576c', '#4facfe, #00f2fe',
+    '#43e97b, #38f9d7', '#fa709a, #fee140', '#a8edea, #fed6e3',
+    '#ff9a9e, #fecfef', '#667eea, #764ba2', '#ffecd2, #fcb69f'
+  ];
+  const index = username ? (username.charCodeAt(0) % colors.length) : 0;
+  return colors[index];
+}
 
 function resetUserSearch() {
   userKeyword.value = "";
   loadUsers(1);
 }
 
+function filterUsers() {
+  currentUserPage.value = 1;
+}
+
+function resetUserFilter() {
+  userKeyword.value = '';
+  userRoleFilter.value = null;
+  userDateRange.value = null;
+  currentUserPage.value = 1;
+}
+
+function handleUserPageChange(page) {
+  currentUserPage.value = page;
+}
+
+function handleUserSelectionChange(selection) {
+  selectedUsers.value = selection;
+}
+
+function openUserDetail(user) {
+  currentUser.value = user;
+  currentUserOrders.value = allUserOrdersMap[user.id] || [];
+  userDetailVisible.value = true;
+}
+
+function viewUserOrders(user) {
+  currentUser.value = user;
+  userOrdersLoading.value = true;
+  userOrdersVisible.value = true;
+  
+  // 如果还没有加载过用户订单
+  if (!allUserOrdersMap[user.id]) {
+    fetchUserOrdersForStats(user.id).then(orders => {
+      currentUserOrders.value = orders;
+      userOrdersLoading.value = false;
+    });
+  } else {
+    currentUserOrders.value = allUserOrdersMap[user.id] || [];
+    userOrdersLoading.value = false;
+  }
+}
+
+function openAddUser() {
+  // 新增用户功能预留
+  ElMessage.info('新增用户功能开发中...');
+}
+
+async function fetchUserOrdersForStats(userId) {
+  try {
+    const res = await request.get(`/api/admin/user/${userId}/orders`);
+    return Array.isArray(res) ? res : [];
+  } catch (e) {
+    console.error("[fetchUserOrdersForStats error]", e);
+    return [];
+  }
+}
+
+async function fetchAllUserOrders() {
+  // 预加载所有用户的订单用于统计
+  for (const user of allUsers.value) {
+    if (!allUserOrdersMap[user.id]) {
+      const orders = await fetchUserOrdersForStats(user.id);
+      allUserOrdersMap[user.id] = orders;
+    }
+  }
+}
+
+function exportUsers() {
+  const data = filteredUsers.value.map(u => ({
+    用户ID: u.id,
+    用户名: u.username,
+    昵称: u.nickname || '',
+    角色: (u.role || '').toUpperCase() === 'ADMIN' ? '管理员' : '普通用户',
+    手机号: u.phone || '',
+    邮箱: u.email || '',
+    订单数: getUserOrderCount(u.id),
+    注册时间: formatDateTime(u.createTime)
+  }));
+  
+  const csv = '用户ID,用户名,昵称,角色,手机号,邮箱,订单数,注册时间\n' + 
+    data.map(row => Object.values(row).join(',')).join('\n');
+  
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `用户列表_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  ElMessage.success('导出成功，共 ' + data.length + ' 条记录');
+}
+
 async function loadUsers(page = 1) {
   currentUserPage.value = page;
-  
-  // 演示模式
-  if (isDemoMode) {
-    const filtered = demoUsers.filter(u => 
-      !userKeyword.value || u.username.includes(userKeyword.value)
-    );
-    users.value = filtered;
-    userTotal.value = filtered.length;
-    return;
-  }
+  usersLoading.value = true;
   
   try {
     const res = await request.get("/api/admin/user/page", {
       params: {
         current: currentUserPage.value,
-        size: userPageSize.value,
+        size: 100, // 加载更多用于统计
         keyword: userKeyword.value || undefined,
       },
     });
 
-    if (!res.data || res.data.code !== 0) {
-      return ElMessage.error(res.data?.msg || "获取用户列表失败");
-    }
-
-    const p = res.data.data; // Page<User>
+    const p = res; // 响应拦截器已解包
     users.value = p.records || [];
+    allUsers.value = p.records || [];
     userTotal.value = Number(p.total || 0);
     userPageSize.value = Number(p.size || userPageSize.value);
+    
+    // 异步加载所有用户的订单用于统计
+    fetchAllUserOrders();
   } catch (e) {
     console.error("[loadUsers error]", e);
-    ElMessage.warning("后端未启动，已切换演示模式");
-    const filtered = demoUsers.filter(u => 
-      !userKeyword.value || u.username.includes(userKeyword.value)
-    );
-    users.value = filtered;
-    userTotal.value = filtered.length;
-  }
-}
-
-async function fetchUserOrders(userId) {
-  try {
-    ordersLoadingMap[userId] = true;
-    const res = await request.get(`/api/admin/user/${userId}/orders`);
-
-    if (!res.data || res.data.code !== 0) {
-      userOrdersMap[userId] = [];
-      return ElMessage.error(res.data?.msg || "获取用户订单失败");
-    }
-
-    userOrdersMap[userId] = res.data.data || [];
-  } catch (e) {
-    console.error("[fetchUserOrders error]", e);
-    userOrdersMap[userId] = [];
-    ElMessage.error("获取用户订单失败：请检查后端/CORS/X-ADMIN");
+    ElMessage.error("获取用户列表失败：" + (e.message || "未知错误"));
   } finally {
-    ordersLoadingMap[userId] = false;
-  }
-}
-
-// 展开/收起时拉取订单
-function onExpandChange(row, expanded) {
-  const userId = row.id;
-
-  if (expanded) {
-    // 一次只展开一个，避免页面太长
-    expandKeys.value = [userId];
-
-    // 没拉过才拉
-    if (!Array.isArray(userOrdersMap[userId])) {
-      fetchUserOrders(userId);
-    }
-  } else {
-    expandKeys.value = [];
+    usersLoading.value = false;
   }
 }
 
@@ -1098,14 +1645,8 @@ const uploadHeaders = {
 async function setZonePrice() {
   if (!priceSet.showId) return ElMessage.warning("请输入演出ID");
   
-  // 演示模式
-  if (isDemoMode) {
-    ElMessage.success(`演示模式：座位价格设置成功！\nA区: ¥${priceSet.a}\nB区: ¥${priceSet.b}\nC区: ¥${priceSet.c}`);
-    return;
-  }
-  
   try {
-    const res = await request.post("/api/admin/seat/price/set", null, {
+    await request.post("/api/admin/seat/price/set", null, {
       params: {
         showId: priceSet.showId,
         priceA: priceSet.a,
@@ -1113,11 +1654,10 @@ async function setZonePrice() {
         priceC: priceSet.c,
       },
     });
-    if (res.data.code !== 0) return ElMessage.error(res.data.msg || "设置失败");
-    ElMessage.success(res.data.data || "设置成功");
+    ElMessage.success("座位价格设置成功");
   } catch (e) {
-    ElMessage.warning("后端未启动，已切换演示模式");
-    ElMessage.success(`演示模式：座位价格设置成功！\nA区: ¥${priceSet.a}\nB区: ¥${priceSet.b}\nC区: ¥${priceSet.c}`);
+    console.error("设置座位价格失败:", e);
+    ElMessage.error("设置失败：" + (e.message || "未知错误"));
   }
 }
 
@@ -1153,16 +1693,6 @@ function fmtDateTime(v) {
 async function loadShows(page = 1) {
   current.value = page;
   
-  // 演示模式
-  if (isDemoMode) {
-    const filtered = demoShows.filter(s => 
-      !keyword.value || s.title.includes(keyword.value)
-    );
-    shows.value = filtered;
-    total.value = filtered.length;
-    return;
-  }
-  
   try {
     const res = await request.get("/api/admin/show/page", {
       params: {
@@ -1172,21 +1702,13 @@ async function loadShows(page = 1) {
       },
     });
 
-    if (!res.data || res.data.code !== 0) {
-      return ElMessage.error(res.data?.msg || "获取演出列表失败");
-    }
-
-    const p = res.data.data; // Page<ShowEvent>
+    const p = res; // 响应拦截器已解包
     shows.value = p.records || [];
     total.value = Number(p.total || 0);
     pageSize.value = Number(p.size || pageSize.value);
   } catch (e) {
-    ElMessage.warning("后端未启动，已切换演示模式");
-    const filtered = demoShows.filter(s => 
-      !keyword.value || s.title.includes(keyword.value)
-    );
-    shows.value = filtered;
-    total.value = filtered.length;
+    console.error("[loadShows error]", e);
+    ElMessage.error("获取演出列表失败：" + (e.message || "未知错误"));
   }
 }
 
@@ -1217,32 +1739,6 @@ async function submitShow() {
     return ElMessage.warning("请填写名称/地点/时间");
   }
 
-  // 演示模式
-  if (isDemoMode) {
-    if (dlgMode.value === "add") {
-      const newShow = {
-        id: demoShows.length + 1,
-        title: form.title,
-        location: form.location,
-        showTime: fmtDateTime(form.showTime),
-        price: form.price,
-        category: form.category,
-        createTime: new Date().toLocaleString()
-      };
-      demoShows.push(newShow);
-      ElMessage.success("演示模式：新增成功！");
-    } else {
-      const idx = demoShows.findIndex(s => s.id === form.id);
-      if (idx !== -1) {
-        demoShows[idx] = { ...demoShows[idx], ...form };
-        ElMessage.success("演示模式：修改成功！");
-      }
-    }
-    dlgVisible.value = false;
-    await loadShows(current.value);
-    return;
-  }
-
   const payload = {
     id: dlgMode.value === "edit" ? form.id : undefined,
     title: form.title,
@@ -1256,85 +1752,288 @@ async function submitShow() {
 
   try {
     if (dlgMode.value === "add") {
-      const res = await request.post("/api/admin/show/add", payload);
-      if (res.data.code !== 0) return ElMessage.error(res.data.msg || "新增失败");
-      ElMessage.success(res.data.data || "新增成功");
+      await request.post("/api/admin/show/add", payload);
+      ElMessage.success("新增成功");
     } else {
-      const res = await request.put("/api/admin/show/update", payload);
-      if (res.data.code !== 0) return ElMessage.error(res.data.msg || "修改失败");
-      ElMessage.success(res.data.data || "修改成功");
+      await request.put("/api/admin/show/update", payload);
+      ElMessage.success("修改成功");
     }
 
     dlgVisible.value = false;
     await loadShows(current.value);
   } catch (e) {
-    ElMessage.error("提交失败：请检查后端/CORS/X-ADMIN");
+    console.error("提交失败:", e);
+    ElMessage.error("提交失败：" + (e.message || "未知错误"));
   }
 }
 
 // 删除：DELETE /api/admin/show/delete/{id}
 async function delShow(id) {
-  // 演示模式
-  if (isDemoMode) {
-    const idx = demoShows.findIndex(s => s.id === id);
-    if (idx !== -1) {
-      demoShows.splice(idx, 1);
-      ElMessage.success("演示模式：删除成功！");
-    }
-    await loadShows(current.value);
-    return;
-  }
-  
   try {
-    const res = await request.delete(`/api/admin/show/delete/${id}`);
-    if (res.data.code !== 0) return ElMessage.error(res.data.msg || "删除失败");
-    ElMessage.success(res.data.data || "删除成功");
+    await request.delete(`/api/admin/show/delete/${id}`);
+    ElMessage.success("删除成功");
 
     const left = shows.value.length - 1;
     const targetPage = left <= 0 && current.value > 1 ? current.value - 1 : current.value;
     await loadShows(targetPage);
   } catch (e) {
-    ElMessage.error("删除失败：请检查后端/CORS/X-ADMIN");
+    console.error("删除失败:", e);
+    ElMessage.error("删除失败：" + (e.message || "未知错误"));
   }
 }
 
 // 初始化座位：POST /api/seat/init/{showId}
 async function initSeats(showId) {
-  // 演示模式
-  if (isDemoMode) {
-    ElMessage.success("演示模式：座位初始化成功！");
-    return;
-  }
   try {
-    const res = await request.post(`/api/seat/init/${showId}`);
-    ElMessage.success(typeof res.data === "string" ? res.data : "初始化成功");
+    await request.post(`/api/seat/init/${showId}`);
+    ElMessage.success("座位初始化成功");
   } catch (e) {
-    ElMessage.error("初始化座位失败：请检查后端");
+    console.error("初始化座位失败:", e);
+    ElMessage.error("初始化座位失败：" + (e.message || "未知错误"));
   }
 }
 
 // ===================== 订单管理 =====================
 const orders = ref([]);
+const orderKeyword = ref('');
+const orderStatusFilter = ref(null);
+const orderDateRange = ref(null);
+const orderMinAmount = ref(null);
+const orderMaxAmount = ref(null);
+const orderCurrentPage = ref(1);
+const orderPageSize = ref(15);
+const selectedOrders = ref([]);
+const ordersLoading = ref(false);
+const orderDetailVisible = ref(false);
+const currentOrder = ref(null);
+const orderShowsMap = ref({}); // showId -> showTitle 映射
 
-async function loadOrders() {
-  // 演示模式
-  if (isDemoMode) {
-    orders.value = demoOrders;
-    return;
+const filteredOrders = computed(() => {
+  let result = orders.value;
+  
+  // 状态筛选
+  if (orderStatusFilter.value !== null) {
+    result = result.filter(o => o.status === orderStatusFilter.value);
+  }
+  
+  // 关键词搜索
+  if (orderKeyword.value) {
+    const kw = orderKeyword.value.toLowerCase();
+    result = result.filter(o => 
+      String(o.id).includes(kw) ||
+      String(o.userId).includes(kw) ||
+      String(o.showId).includes(kw)
+    );
+  }
+  
+  // 日期范围筛选
+  if (orderDateRange.value && orderDateRange.value.length === 2) {
+    const [startDate, endDate] = orderDateRange.value;
+    result = result.filter(o => {
+      if (!o.createTime) return false;
+      const orderDate = o.createTime.split(' ')[0];
+      return orderDate >= startDate && orderDate <= endDate;
+    });
+  }
+  
+  // 金额范围筛选
+  if (orderMinAmount.value !== null) {
+    result = result.filter(o => parseFloat(o.amount || 0) >= orderMinAmount.value);
+  }
+  if (orderMaxAmount.value !== null) {
+    result = result.filter(o => parseFloat(o.amount || 0) <= orderMaxAmount.value);
+  }
+  
+  return result;
+});
+
+const paginatedOrders = computed(() => {
+  const start = (orderCurrentPage.value - 1) * orderPageSize.value;
+  const end = start + orderPageSize.value;
+  return filteredOrders.value.slice(start, end);
+});
+
+function getOrderCountByStatus(status) {
+  return orders.value.filter(o => o.status === status).length;
+}
+
+function getTotalRevenue() {
+  return orders.value.filter(o => o.status === 1).reduce((sum, o) => sum + parseFloat(o.amount || 0), 0).toFixed(2);
+}
+
+function getStatusText(status) {
+  const map = { 0: '待支付', 1: '已完成', 2: '已取消' };
+  return map[status] || '未知';
+}
+
+function getStatusClass(status) {
+  const map = { 0: 'pending', 1: 'success', 2: 'cancelled' };
+  return map[status] || '';
+}
+
+function formatDateTime(dateTime) {
+  if (!dateTime) return '-';
+  const date = new Date(dateTime);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function filterOrders() {
+  orderCurrentPage.value = 1; // 重置到第一页
+}
+
+function resetOrderFilter() {
+  orderKeyword.value = '';
+  orderStatusFilter.value = null;
+  orderDateRange.value = null;
+  orderMinAmount.value = null;
+  orderMaxAmount.value = null;
+  orderCurrentPage.value = 1;
+}
+
+function handleOrderPageChange(page) {
+  orderCurrentPage.value = page;
+}
+
+function handleSelectionChange(selection) {
+  selectedOrders.value = selection;
+}
+
+function getRowClass({ row }) {
+  return row.status === 0 ? 'pending-row' : row.status === 2 ? 'cancelled-row' : '';
+}
+
+async function handleOrderAction(order, action) {
+  try {
+    if (action === 'pay') {
+      await request.post('/api/order/pay', { orderId: order.id, userId: order.userId });
+      ElMessage.success('支付确认成功');
+    } else if (action === 'cancel') {
+      await request.post('/api/order/cancel', { orderId: order.id, userId: order.userId });
+      ElMessage.success('订单已取消');
+    } else if (action === 'refund') {
+      await request.post('/api/order/refund', { orderId: order.id });
+      ElMessage.success('退款处理成功');
+    } else if (action === 'print') {
+      window.print();
+      return;
+    }
+    orderDetailVisible.value = false;
+    await loadOrders();
+  } catch (e) {
+    console.error('[order action error]', e);
+    ElMessage.error('操作失败：' + (e.message || '未知错误'));
+  }
+}
+
+function openOrderDetail(order) {
+  currentOrder.value = order;
+  orderDetailVisible.value = true;
+}
+
+async function batchConfirmOrders() {
+  if (selectedOrders.value.length === 0) {
+    return ElMessage.warning('请先选择订单');
+  }
+  
+  const pendingOrders = selectedOrders.value.filter(o => o.status === 0);
+  if (pendingOrders.length === 0) {
+    return ElMessage.warning('选中的订单中没有待支付的订单');
   }
   
   try {
-    const res = await request.get("/api/admin/order/all");
-    if (res.data && typeof res.data === "object" && "code" in res.data) {
-      if (res.data.code !== 0) return ElMessage.error(res.data.msg || "获取订单失败");
-      orders.value = res.data.data || [];
-    } else {
-      orders.value = res.data || [];
+    for (const order of pendingOrders) {
+      await request.post('/api/order/pay', { orderId: order.id, userId: order.userId });
     }
+    ElMessage.success(`成功确认 ${pendingOrders.length} 笔订单`);
+    selectedOrders.value = [];
+    await loadOrders();
   } catch (e) {
-    ElMessage.warning("后端未启动，已切换演示模式");
-    orders.value = demoOrders;
+    console.error('[batch confirm error]', e);
+    ElMessage.error('批量确认失败');
   }
+}
+
+async function batchCancelOrders() {
+  if (selectedOrders.value.length === 0) {
+    return ElMessage.warning('请先选择订单');
+  }
+  
+  const cancelableOrders = selectedOrders.value.filter(o => o.status === 0);
+  if (cancelableOrders.length === 0) {
+    return ElMessage.warning('选中的订单中没有可取消的订单');
+  }
+  
+  try {
+    for (const order of cancelableOrders) {
+      await request.post('/api/order/cancel', { orderId: order.id, userId: order.userId });
+    }
+    ElMessage.success(`成功取消 ${cancelableOrders.length} 笔订单`);
+    selectedOrders.value = [];
+    await loadOrders();
+  } catch (e) {
+    console.error('[batch cancel error]', e);
+    ElMessage.error('批量取消失败');
+  }
+}
+
+function exportOrders() {
+  const data = filteredOrders.value.map(o => ({
+    订单ID: o.id,
+    用户ID: o.userId,
+    演出ID: o.showId,
+    座位ID: o.seatId,
+    金额: o.amount,
+    状态: getStatusText(o.status),
+    创建时间: formatDateTime(o.createTime)
+  }));
+  
+  const csv = '订单ID,用户ID,演出ID,座位ID,金额,状态,创建时间\n' + 
+    data.map(row => Object.values(row).join(',')).join('\n');
+  
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `订单_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  ElMessage.success('导出成功，共 ' + data.length + ' 条记录');
+}
+
+async function loadOrders() {
+  ordersLoading.value = true;
+  try {
+    const res = await request.get("/api/admin/order/all");
+    orders.value = Array.isArray(res) ? res : [];
+    
+    // 构建演出名称映射（使用已加载的shows列表）
+    const map = {};
+    shows.value.forEach(s => {
+      if (s.id) {
+        map[s.id] = s.title;
+      }
+    });
+    orderShowsMap.value = map;
+  } catch (e) {
+    console.error("[loadOrders error]", e);
+    ElMessage.error("获取订单列表失败：" + (e.message || "未知错误"));
+  } finally {
+    ordersLoading.value = false;
+  }
+}
+
+function getShowTitle(showId) {
+  const title = orderShowsMap.value[showId];
+  if (title) return title;
+  // 如果映射中没有，尝试从shows列表中查找
+  const show = shows.value.find(s => s.id === showId);
+  return show ? show.title : `演出 #${showId}`;
 }
 
 // ===================== 通用 =====================
@@ -1350,11 +2049,17 @@ function fullUrl(p) {
 }
 
 function onUploadSuccess(res) {
-  if (res && res.code === 0) {
-    form.imageUrl = res.data;
+  // 上传接口可能返回 {code, data} 或直接返回URL
+  if (res && typeof res === 'object') {
+    if (res.code === 0) {
+      form.imageUrl = res.data;
+      ElMessage.success("上传成功");
+    } else {
+      ElMessage.error(res.msg || "上传失败");
+    }
+  } else if (typeof res === 'string') {
+    form.imageUrl = res;
     ElMessage.success("上传成功");
-  } else {
-    ElMessage.error(res?.msg || "上传失败");
   }
 }
 
@@ -1363,11 +2068,7 @@ function onUploadError() {
 }
 
 onMounted(() => {
-  if ((localStorage.getItem("role") || "").toUpperCase() !== "ADMIN") {
-    ElMessage.error("无权限访问后台");
-    router.push("/login");
-    return;
-  }
+  // 已移除权限检查，任何人都可访问后台（演示用）
   loadShows(1);
   loadOrders();
   loadUsers(1);
@@ -1944,6 +2645,649 @@ onMounted(() => {
   }
   .comments-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ===================== 订单管理新样式 ===================== */
+/* 订单仪表盘 */
+.order-dashboard {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #F0F2F5;
+}
+
+.dashboard-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.stat-box {
+  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.stat-box:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  border-color: #FF4D4D;
+}
+
+.stat-box.revenue {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+}
+
+.stat-box.revenue .stat-percent {
+  color: rgba(255,255,255,0.8);
+}
+
+.stat-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.stat-icon-box.all {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.stat-icon-box.pending {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.stat-icon-box.success {
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+  color: white;
+}
+
+.stat-icon-box.danger {
+  background: linear-gradient(135deg, #ff4b2b 0%, #ff416c 100%);
+  color: white;
+}
+
+.stat-icon-box.money {
+  background: rgba(255,255,255,0.2);
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.stat-number {
+  font-size: 28px;
+  font-weight: 800;
+  color: #333;
+  line-height: 1.2;
+}
+
+.stat-text {
+  font-size: 13px;
+  color: #999;
+  margin: 4px 0;
+}
+
+.stat-percent {
+  font-size: 12px;
+  color: #666;
+}
+
+/* 筛选面板 */
+.filter-panel {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  color: #999;
+  font-weight: 600;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 订单列表容器 */
+.order-list-container {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+}
+
+.order-no {
+  font-weight: 700;
+  color: #FF4D4D;
+  font-family: 'Courier New', monospace;
+}
+
+.amount-text {
+  font-weight: 700;
+  color: #FF4D4D;
+  font-size: 16px;
+}
+
+.time-text {
+  font-size: 13px;
+  color: #666;
+}
+
+.order-timeline-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timeline-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #E4E7ED;
+  color: #999;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.timeline-dot.active {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+}
+
+.timeline-line {
+  flex: 1;
+  height: 2px;
+  background: #E4E7ED;
+  max-width: 30px;
+}
+
+.action-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 演出名称显示 */
+.show-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.show-id-tag {
+  align-self: flex-start;
+}
+
+.show-title-text {
+  font-size: 13px;
+  color: #333;
+  font-weight: 600;
+  line-height: 1.3;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.show-highlight {
+  color: #FF4D4D;
+  font-weight: 700;
+}
+
+/* 分页 */
+.pagination-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #F0F2F5;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 表格行样式 */
+:deep(.pending-row) {
+  background-color: #FFF9F0 !important;
+}
+
+:deep(.cancelled-row) {
+  background-color: #F5F5F5 !important;
+  opacity: 0.7;
+}
+
+/* 订单详情弹窗 */
+.order-detail-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+  padding: 20px;
+}
+
+.order-detail-dialog :deep(.el-dialog__title) {
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.order-detail-dialog :deep(.el-dialog__close) {
+  color: white;
+}
+
+.order-detail-content {
+  padding: 10px 0;
+}
+
+.detail-section {
+  background: #FAFBFC;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #FF4D4D;
+  display: inline-block;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #999;
+  font-weight: 600;
+}
+
+.detail-value {
+  font-size: 15px;
+  color: #333;
+  font-weight: 600;
+}
+
+.detail-value.highlight {
+  color: #FF4D4D;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.detail-value.price {
+  color: #FF4D4D;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+/* 订单时间轴 */
+.order-timeline {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  padding: 20px 0;
+}
+
+.order-timeline::before {
+  content: '';
+  position: absolute;
+  top: 38px;
+  left: 40px;
+  right: 40px;
+  height: 3px;
+  background: #E4E7ED;
+  z-index: 0;
+}
+
+.timeline-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.timeline-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #E4E7ED;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 10px;
+  transition: all 0.3s;
+}
+
+.timeline-item.active .timeline-icon {
+  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(255,77,77,0.4);
+  transform: scale(1.1);
+}
+
+.timeline-item.completed .timeline-icon {
+  background: #67C23A;
+  color: white;
+}
+
+.timeline-content {
+  text-align: center;
+}
+
+.timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.timeline-time {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .stats-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .order-timeline {
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .order-timeline::before {
+    top: 20px;
+    bottom: 20px;
+    left: 24px;
+    right: auto;
+    width: 3px;
+    height: auto;
+  }
+  
+  .timeline-item {
+    flex-direction: row;
+    gap: 16px;
+  }
+  
+  .timeline-content {
+    text-align: left;
+  }
+}
+
+/* ===================== 用户管理新样式 ===================== */
+/* 用户仪表盘 */
+.user-dashboard {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+}
+
+.user-dashboard .dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #F0F2F5;
+}
+
+.user-dashboard .dashboard-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+/* 用户列表容器 */
+.user-list-container {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+}
+
+.user-id {
+  font-weight: 700;
+  color: #667EEA;
+  font-family: 'Courier New', monospace;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-info-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.username-text {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.nickname-text {
+  font-size: 12px;
+  color: #999;
+}
+
+.contact-text {
+  font-size: 13px;
+  color: #666;
+}
+
+.order-no-small {
+  font-weight: 600;
+  color: #FF4D4D;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.amount-text-small {
+  font-weight: 600;
+  color: #FF4D4D;
+  font-size: 14px;
+}
+
+/* 用户详情弹窗 */
+.user-detail-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+  color: white;
+  padding: 20px;
+}
+
+.user-detail-dialog :deep(.el-dialog__title) {
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.user-detail-dialog :deep(.el-dialog__close) {
+  color: white;
+}
+
+.user-detail-content {
+  padding: 10px 0;
+}
+
+.user-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-name {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.profile-nickname {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.user-order-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.order-stat-item {
+  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.order-stat-item:hover {
+  border-color: #667EEA;
+  transform: translateY(-2px);
+}
+
+.order-stat-item.success {
+  background: linear-gradient(135deg, #f0f9eb 0%, #fff 100%);
+}
+
+.order-stat-item.warning {
+  background: linear-gradient(135deg, #fdf6ec 0%, #fff 100%);
+}
+
+.order-stat-item.danger {
+  background: linear-gradient(135deg, #fef0f0 0%, #fff 100%);
+}
+
+.order-stat-number {
+  font-size: 28px;
+  font-weight: 800;
+  color: #333;
+}
+
+.order-stat-item.success .order-stat-number {
+  color: #67C23A;
+}
+
+.order-stat-item.warning .order-stat-number {
+  color: #E6A23C;
+}
+
+.order-stat-item.danger .order-stat-number {
+  color: #F56C6C;
+}
+
+.order-stat-label {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .user-order-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

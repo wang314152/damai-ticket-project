@@ -1,6 +1,7 @@
 package com.damai.damaiticket.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.damai.damaiticket.common.R;
 import com.damai.damaiticket.entity.Seat;
 import com.damai.damaiticket.entity.ShowEvent;
 import com.damai.damaiticket.service.SeatService;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/seat")
+@CrossOrigin
 public class SeatController {
 
     private final SeatService seatService;
@@ -28,13 +30,13 @@ public class SeatController {
      * A/B/C 区不同价格
      */
     @PostMapping("/init/{showId}")
-    public String init(@PathVariable Long showId) {
+    public R<String> init(@PathVariable Long showId) {
 
         // 先删除原有座位（防止重复）
         seatService.remove(new QueryWrapper<Seat>().eq("show_id", showId));
 
         ShowEvent show = showEventService.getById(showId);
-        if (show == null) return "演出不存在";
+        if (show == null) return R.fail("演出不存在");
 
         BigDecimal base = show.getPrice(); // 基础票价
 
@@ -64,15 +66,16 @@ public class SeatController {
         }
 
         seatService.saveBatch(list);
-        return "座位初始化成功（含分区价格）";
+        return R.ok("座位初始化成功（含分区价格）");
     }
 
     @GetMapping("/list/{showId}")
-    public List<Seat> list(@PathVariable Long showId) {
-        return seatService.list(
+    public R<List<Seat>> list(@PathVariable Long showId) {
+        List<Seat> seats = seatService.list(
                 new QueryWrapper<Seat>()
                         .eq("show_id", showId)
                         .orderByAsc("seat_number")
         );
+        return R.ok(seats);
     }
 }

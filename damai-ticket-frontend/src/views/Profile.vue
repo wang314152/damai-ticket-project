@@ -204,7 +204,8 @@ const loadProfile = async () => {
   if (!userId.value) return
   
   try {
-    user.value = await request.get(`/api/user/${userId.value}`)
+    const userData = await request.get(`/api/user/${userId.value}`)
+    user.value = userData || {}
     
     // 填充表单
     form.username = user.value.username || ''
@@ -220,18 +221,18 @@ const loadProfile = async () => {
 const saveProfile = async () => {
   saving.value = true
   try {
-    const res = await request.put('/api/user/update', {
+    const msg = await request.put('/api/user/update', {
       id: userId.value,
       phone: form.phone,
       email: form.email,
       nickname: form.nickname
     })
     
-    if (res && res.includes('成功')) {
+    if (msg && String(msg).includes('成功')) {
       showToast('保存成功！', 'success')
       await loadProfile()
     } else {
-      showToast(res || '保存失败', 'error')
+      showToast(String(msg) || '保存失败', 'error')
     }
   } catch (error) {
     console.error('保存失败:', error)

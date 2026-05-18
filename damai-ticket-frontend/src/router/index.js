@@ -7,6 +7,8 @@ import MyOrders from "../views/MyOrders.vue";
 import Profile from "../views/Profile.vue";
 import Admin from "../views/Admin.vue";
 import AIAssistant from "../views/AIAssistant.vue";
+import MultiAgent from "../views/MultiAgent.vue";
+import Forum from "../views/Forum.vue";
 
 // GitHub Pages 使用 hash 模式，避免路由问题
 const isGitHubPages = window.location.hostname.includes('github.io');
@@ -25,6 +27,8 @@ const router = createRouter({
         { path: "/profile", name: "profile", component: Profile },
         { path: "/admin", name: "admin", component: Admin },
         { path: "/ai-assistant", name: "ai-assistant", component: AIAssistant },
+        { path: "/multi-agent", name: "multi-agent", component: MultiAgent },
+        { path: "/forum", name: "forum", component: Forum },
         { path: "/:pathMatch(.*)*", redirect: "/events" },
     ],
 });

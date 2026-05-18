@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>自动登录</title>
+</head>
+<body>
+    <h2>正在自动登录管理员账号...</h2>
+    <script>
+        // 设置管理员登录状态
+        localStorage.setItem('userId', '1');
+        localStorage.setItem('username', 'admin');
+        localStorage.setItem('role', 'ADMIN');
+        localStorage.setItem('isAdmin', '1');
+        localStorage.setItem('token', 'mock-token-admin');
+        
+        // 跳转到后台
+        setTimeout(() => {
+            window.location.href = 'http://localhost:7000/admin';
+        }, 500);
+    </script>
+</body>
+</html>
