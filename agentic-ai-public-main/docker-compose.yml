@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  agentic-ai:
+    build: .
+    container_name: agentic-ai
+    ports:
+      - "8000:8000"
+      - "5432:5432"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://app:local@127.0.0.1:5432/appdb
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=local
+      - POSTGRES_DB=appdb
+    volumes:
+      - ./templates:/app/templates
+      - ./static:/app/static
+    restart: unless-stopped
+    networks:
+      - agentic-network
+
+networks:
+  agentic-network:
+    driver: bridge

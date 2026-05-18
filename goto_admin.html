@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>管理员登录</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h2>正在登录管理员账号...</h2>
+    <script>
+        async function login() {
+            try {
+                const res = await axios.post('http://localhost:8081/api/auth/login', {
+                    username: 'admin',
+                    password: 'admin123'
+                });
+                
+                if (res.data.code === 0) {
+                    const user = res.data.data;
+                    // 设置localStorage
+                    localStorage.setItem('userId', user.id);
+                    localStorage.setItem('username', user.username);
+                    localStorage.setItem('role', user.role);
+                    localStorage.setItem('isAdmin', user.role === 'ADMIN' ? '1' : '0');
+                    localStorage.setItem('token', 'mock-token-' + Date.now());
+                    
+                    document.body.innerHTML = '<h2>登录成功！正在跳转后台...</h2>';
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:7000/admin';
+                    }, 500);
+                } else {
+                    document.body.innerHTML = '<h2 style="color:red">登录失败: ' + res.data.msg + '</h2>';
+                }
+            } catch (e) {
+                document.body.innerHTML = '<h2 style="color:red">错误: 后端可能未启动</h2><p>' + e.message + '</p>';
+            }
+        }
+        login();
+    </script>
+</body>
+</html>

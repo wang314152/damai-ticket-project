@@ -10,8 +10,11 @@
         </div>
         
         <div class="header-actions">
-          <el-button @click="goOrders" class="header-btn order-btn">
-            <span>📋</span> 我的订单
+          <el-button @click="goMultiAgent" class="header-btn ai-btn">
+            <span>🤖</span> AI助手
+          </el-button>
+          <el-button @click="goForum" class="header-btn forum-btn">
+            <span>💬</span> 论坛
           </el-button>
           <el-button @click="goProfile" circle class="action-btn" title="个人中心">
             <span class="btn-icon">👤</span>
@@ -75,8 +78,44 @@
             :class="{ active: category === '体育赛事' }"
             @click="category='体育赛事'; applyFilter()"
           >⚽ 体育赛事</span>
-
+          <span 
+            class="category-tab" 
+            :class="{ active: showFavorites }"
+            @click="showFavorites = !showFavorites"
+          >❤️ 我的收藏</span>
+          <span 
+            class="category-tab" 
+            :class="{ active: showHistory }"
+            @click="showHistory = !showHistory"
+          >📜 浏览历史</span>
         </div>
+      </div>
+    </div>
+
+    <!-- 浏览历史 -->
+    <div class="history-section" v-if="showHistory">
+      <div class="history-header">
+        <h2>📜 浏览历史</h2>
+        <button class="clear-history" @click="clearHistory" v-if="historyList.length > 0">清空</button>
+      </div>
+      <div class="history-grid" v-if="historyList.length > 0">
+        <div v-for="(item, index) in historyList" :key="item.id" class="history-card" @click="goSeat(item.id)">
+          <div class="history-num">{{ index + 1 }}</div>
+          <img :src="fullUrl(item.imageUrl)" class="history-img" />
+          <div class="history-info">
+            <div class="history-title">{{ item.title }}</div>
+            <div class="history-meta">
+              <span>{{ item.location }}</span>
+              <span class="history-price">¥{{ item.price }}起</span>
+            </div>
+            <div class="history-time">{{ item.viewTime }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="history-empty" v-else>
+        <div class="empty-icon">📭</div>
+        <p>暂无浏览记录</p>
+        <p class="empty-hint">去看看有哪些精彩演出吧</p>
       </div>
     </div>
 
@@ -150,6 +189,12 @@
             </el-image>
             <div class="show-tag" v-if="item.category">{{ item.category }}</div>
             <div class="show-time-badge" v-if="item.showTime">{{ formatShowTime(item.showTime) }}</div>
+            <div class="show-actions">
+              <button class="action-btn" @click.stop="toggleFavorite(item)" :class="{ active: isFavorite(item.id) }">
+                {{ isFavorite(item.id) ? '❤️' : '🤍' }}
+              </button>
+              <button class="action-btn" @click.stop="shareShow(item)">📤</button>
+            </div>
           </div>
           <div class="show-content">
             <h3 class="show-title text-ellipsis">{{ item.title }}</h3>
@@ -231,10 +276,83 @@ const category = ref("");
 const page = ref(1);
 const pageSize = ref(12);
 
-function goSeat(showId) { router.push(`/seat/${showId}`); }
+// 收藏功能
+const favorites = ref(JSON.parse(localStorage.getItem('favorites') || '[]'));
+const showFavorites = ref(false);
+
+// 浏览历史
+const historyList = ref(JSON.parse(localStorage.getItem('history') || '[]'));
+// 确保按时间排序
+historyList.value.sort((a, b) => (b.viewTimestamp || 0) - (a.viewTimestamp || 0));
+const showHistory = ref(false);
+
+function goSeat(showId) { 
+  // 记录浏览历史
+  const show = allList.value.find(s => s.id === showId);
+  if (show) {
+    addToHistory(show);
+  }
+  router.push(`/seat/${showId}`); 
+}
+
+function addToHistory(show) {
+  // 去除重复，添加到最后（最近访问）
+  const history = historyList.value.filter(h => h.id !== show.id);
+  const now = new Date();
+  const timeStr = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+  history.push({
+    ...show,
+    viewTime: timeStr,
+    viewTimestamp: now.getTime()
+  });
+  // 按时间排序，最新的在最前
+  history.sort((a, b) => (b.viewTimestamp || 0) - (a.viewTimestamp || 0));
+  historyList.value = history.slice(0, 10); // 只保留10条
+  localStorage.setItem('history', JSON.stringify(historyList.value));
+}
+
+function isFavorite(id) {
+  return favorites.value.includes(id);
+}
+
+function toggleFavorite(item) {
+  const idx = favorites.value.indexOf(item.id);
+  if (idx > -1) {
+    favorites.value.splice(idx, 1);
+    ElMessage.success('已取消收藏');
+  } else {
+    favorites.value.push(item.id);
+    ElMessage.success('已添加到收藏');
+  }
+  localStorage.setItem('favorites', JSON.stringify(favorites.value));
+}
+
+function shareShow(item) {
+  const shareText = `【大麦网】${item.title}\n📍 ${item.location}\n💰 ¥${item.price}起\n🔥 精彩演出，不容错过！`;
+  
+  if (navigator.share) {
+    navigator.share({
+      title: item.title,
+      text: shareText,
+      url: window.location.origin + `/seat/${item.id}`
+    });
+  } else {
+    // 复制到剪贴板
+    navigator.clipboard.writeText(shareText + '\n' + window.location.origin + `/seat/${item.id}`);
+    ElMessage.success('已复制分享内容到剪贴板');
+  }
+}
+
+function clearHistory() {
+  historyList.value = [];
+  localStorage.setItem('history', '[]');
+  ElMessage.success('已清空浏览历史');
+}
 function goOrders() { router.push("/orders"); }
 function goProfile() { router.push("/profile"); }
 function goAdmin() { router.push("/admin"); }
+function goMultiAgent() { router.push("/multi-agent"); }
+function goForum() { router.push("/forum"); }
 function logout() {
   localStorage.clear();
   router.push("/login");
@@ -243,8 +361,9 @@ function logout() {
 function fullUrl(p) {
   if (!p) return "";
   if (p.startsWith("http")) return p;
-  if (isDemoMode) return "https://picsum.photos/seed/default/400/300";
-  return "http://localhost:8081" + p;
+  // 如果是本地路径，转换为完整URL
+  if (p.startsWith("/")) return "http://localhost:8081" + p;
+  return p;
 }
 
 function formatShowTime(timeStr) {
@@ -260,33 +379,38 @@ function formatShowTime(timeStr) {
 }
 
 async function loadAll() {
-  if (isDemoMode) {
-    allList.value = demoData;
-    recommendList.value = demoData.slice(0, 4);
-    page.value = 1;
-    return;
-  }
+  // 默认使用演示数据
+  allList.value = demoData;
+  recommendList.value = demoData.slice(0, 4);
+  page.value = 1;
+  
   try {
-    const res = await request.get("/api/show/list");
-    allList.value = Array.isArray(res.data) ? res.data : [];
-    recommendList.value = allList.value.filter(i => i.imageUrl).slice(0, 4);
-    page.value = 1;
+    const data = await request.get("/api/show/list");
+    if (Array.isArray(data) && data.length > 0) {
+      allList.value = data;
+      recommendList.value = data.filter(i => i.imageUrl).slice(0, 4);
+    }
   } catch (e) {
-    ElMessage.warning("后端未启动，已切换为演示模式");
-    allList.value = demoData;
-    recommendList.value = demoData.slice(0, 4);
-    page.value = 1;
+    console.log('使用演示数据');
   }
 }
 
 const filtered = computed(() => {
+  // 如果显示收藏列表
+  if (showFavorites.value) {
+    return allList.value.filter(x => favorites.value.includes(x.id));
+  }
+  
   const kw = keyword.value.trim().toLowerCase();
   const cat = category.value.trim();
-  return allList.value.filter(x => {
+  console.log('[搜索] keyword:', kw, 'category:', cat, '总数据:', allList.value.length);
+  const result = allList.value.filter(x => {
     const matchKw = !kw || (x.title || "").toLowerCase().includes(kw) || (x.location || "").toLowerCase().includes(kw);
     const matchCat = !cat || (x.category || "") === cat;
     return matchKw && matchCat;
   });
+  console.log('[搜索] 结果:', result.length, '条');
+  return result;
 });
 
 const pageList = computed(() => {
@@ -294,8 +418,8 @@ const pageList = computed(() => {
   return filtered.value.slice(start, start + pageSize.value);
 });
 
-function applyFilter() { page.value = 1; }
-function resetFilter() { keyword.value = ""; category.value = ""; page.value = 1; }
+function applyFilter() { page.value = 1; console.log('搜索:', keyword.value); }
+function resetFilter() { keyword.value = ""; category.value = ""; page.value = 1; allList.value = []; loadAll(); }
 function onPageChange(p) { page.value = p; window.scrollTo({ top: 400, behavior: "smooth" }); }
 
 watch(filtered, () => {
@@ -407,6 +531,24 @@ onMounted(loadAll);
 
 .order-btn:hover {
   background: #fff5f5;
+}
+
+.ai-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.ai-btn:hover {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+}
+
+.forum-btn {
+  background: linear-gradient(135deg, #FF9500 0%, #FF6B00 100%);
+  color: white;
+}
+
+.forum-btn:hover {
+  background: linear-gradient(135deg, #e68600 0%, #e66100 100%);
 }
 
 .admin-btn {
@@ -541,6 +683,176 @@ onMounted(loadAll);
 .category-tab.active {
   background: #FF4D4D;
   color: white;
+}
+
+/* 收藏和分享按钮 */
+.show-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.show-actions .action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.show-actions .action-btn:hover {
+  transform: scale(1.1);
+}
+
+.show-actions .action-btn.active {
+  background: #FF4D4D;
+  color: white;
+}
+
+/* 浏览历史 */
+.history-section {
+  max-width: 1200px;
+  margin: 0 auto 20px;
+  padding: 0 40px;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.history-header h2 {
+  font-size: 18px;
+  color: #333;
+  margin: 0;
+}
+
+.clear-history {
+  padding: 6px 14px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+}
+
+.clear-history:hover {
+  background: #ff4757;
+  color: white;
+  border-color: #ff4757;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.history-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.history-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.history-num {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #FF4D4D, #FF6B35);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.history-img {
+  width: 80px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.history-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.history-price {
+  color: #FF4D4D;
+  font-weight: 600;
+}
+
+.history-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 40px;
+  background: white;
+  border-radius: 12px;
+}
+
+.history-empty .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.history-empty p {
+  margin: 0;
+  color: #666;
+}
+
+.history-empty .empty-hint {
+  font-size: 13px;
+  color: #999;
+  margin-top: 8px;
 }
 
 /* 内容区域 */

@@ -119,38 +119,52 @@ const handleLogin = async () => {
 
   loading.value = true
   try {
-    const res = await request.post('/api/auth/login', {
+    const user = await request.post('/api/auth/login', {
       username: loginForm.username,
       password: loginForm.password
     })
 
-    if (res && res.id) {
-      // 登录成功，保存用户信息
-      localStorage.setItem('userId', res.id)
-      localStorage.setItem('username', res.username)
-      localStorage.setItem('role', res.role || 'USER')
+    if (user && user.id) {
+      localStorage.setItem('userId', user.id)
+      localStorage.setItem('username', user.username)
+      localStorage.setItem('role', user.role || 'USER')
+      localStorage.setItem('isAdmin', user.role === 'ADMIN' ? '1' : '0')
       localStorage.setItem('token', 'mock-token-' + Date.now())
 
       showMessage('登录成功！', 'info')
       setTimeout(() => {
-        router.push(res.role === 'ADMIN' ? '/admin' : '/')
+        router.push(user.role === 'ADMIN' ? '/admin' : '/')
       }, 500)
     } else {
       showMessage('用户名或密码错误', 'error')
     }
-  } catch (error) {
-    console.error('登录失败:', error)
-    showMessage('登录失败，请检查用户名和密码', 'error')
+  } catch (e) {
+    // 后端不可用，使用本地演示登录
+    if (loginForm.username === 'test' && loginForm.password === '123456') {
+      localStorage.setItem('userId', '999')
+      localStorage.setItem('username', 'test')
+      localStorage.setItem('role', 'USER')
+      localStorage.setItem('isAdmin', '0')
+      localStorage.setItem('token', 'mock-token-' + Date.now())
+      showMessage('登录成功（演示模式）！', 'info')
+      setTimeout(() => router.push('/'), 500)
+    } else {
+      showMessage('后端未启动，请使用演示账号登录', 'error')
+    }
   } finally {
     loading.value = false
   }
 }
 
-const handleDemoLogin = async () => {
-  // 演示账号
-  loginForm.username = 'test'
-  loginForm.password = '123'
-  await handleLogin()
+const handleDemoLogin = () => {
+  // 直接使用演示账号登录，不调用后端
+  localStorage.setItem('userId', '999')
+  localStorage.setItem('username', 'test')
+  localStorage.setItem('role', 'USER')
+  localStorage.setItem('isAdmin', '0')
+  localStorage.setItem('token', 'mock-token-' + Date.now())
+  showMessage('登录成功（演示模式）！', 'info')
+  setTimeout(() => router.push('/'), 500)
 }
 
 const handleRegister = async () => {
@@ -161,23 +175,35 @@ const handleRegister = async () => {
 
   loading.value = true
   try {
-    const res = await request.post('/api/auth/register', {
+    await request.post('/api/auth/register', {
       username: registerForm.username,
       password: registerForm.password,
       phone: registerForm.phone
     })
-
-    if (res && (res === '注册成功' || res.includes('成功'))) {
-      showMessage('注册成功！请登录', 'info')
+    showMessage('注册成功！请登录', 'info')
+    activeTab.value = 'login'
+    loginForm.username = registerForm.username
+    loginForm.password = registerForm.password
+  } catch (e) {
+    // 后端不可用，使用本地演示注册
+    const users = JSON.parse(localStorage.getItem('demoUsers') || '[]')
+    const exists = users.find(u => u.username === registerForm.username)
+    if (exists) {
+      showMessage('用户名已存在', 'error')
+    } else {
+      users.push({
+        username: registerForm.username,
+        password: registerForm.password,
+        phone: registerForm.phone,
+        id: Date.now(),
+        role: 'USER'
+      })
+      localStorage.setItem('demoUsers', JSON.stringify(users))
+      showMessage('注册成功（演示模式）！请登录', 'info')
       activeTab.value = 'login'
       loginForm.username = registerForm.username
       loginForm.password = registerForm.password
-    } else {
-      showMessage(res || '注册失败', 'error')
     }
-  } catch (error) {
-    console.error('注册失败:', error)
-    showMessage('注册失败，用户名可能已存在', 'error')
   } finally {
     loading.value = false
   }
@@ -187,7 +213,7 @@ const handleRegister = async () => {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -297,7 +323,7 @@ const handleRegister = async () => {
 }
 
 .tab.active {
-  color: #FF4D4D;
+  color: #6366F1;
 }
 
 .tab-indicator {
@@ -329,7 +355,7 @@ const handleRegister = async () => {
 }
 
 .input-group:focus-within {
-  border-color: #FF4D4D;
+  border-color: #6366F1;
   background: white;
 }
 
@@ -358,7 +384,7 @@ const handleRegister = async () => {
 }
 
 .btn-login {
-  background: linear-gradient(135deg, #FF4D4D 0%, #FF6B35 100%);
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
   color: white;
   border: none;
   padding: 16px;
@@ -367,12 +393,12 @@ const handleRegister = async () => {
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 15px rgba(255, 77, 77, 0.4);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
 }
 
 .btn-login:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 77, 77, 0.5);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
 }
 
 .btn-login:active:not(:disabled) {
@@ -400,8 +426,8 @@ const handleRegister = async () => {
 
 .btn-demo {
   background: transparent;
-  color: #FF4D4D;
-  border: 2px solid #FF4D4D;
+  color: #6366F1;
+  border: 2px solid #6366F1;
   padding: 12px;
   border-radius: 12px;
   font-size: 14px;
@@ -411,7 +437,7 @@ const handleRegister = async () => {
 }
 
 .btn-demo:hover {
-  background: #FFF5F5;
+  background: #EEF2FF;
 }
 
 .message {
@@ -426,8 +452,8 @@ const handleRegister = async () => {
 }
 
 .message.error {
-  background: #FFEBEE;
-  color: #C62828;
+  background: #EEF2FF;
+  color: #4F46E5;
 }
 
 @keyframes slideIn {

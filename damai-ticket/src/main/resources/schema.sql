@@ -54,3 +54,28 @@ CREATE TABLE IF NOT EXISTS rating (
     content TEXT,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 论坛帖子表
+CREATE TABLE IF NOT EXISTS forum_post (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    content TEXT,
+    user_id BIGINT,
+    author_name VARCHAR(100),
+    view_count INT DEFAULT 0,
+    reply_count INT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    show_id BIGINT,
+    show_name VARCHAR(200)
+);
+
+-- 论坛回复表
+CREATE TABLE IF NOT EXISTS forum_reply (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    post_id BIGINT NOT NULL,
+    user_id BIGINT,
+    user_name VARCHAR(100),
+    content TEXT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
