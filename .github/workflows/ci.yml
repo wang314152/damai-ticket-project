@@ -8,14 +8,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Maven 缓存加速
+      # Maven 缓存
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
@@ -35,9 +35,8 @@ jobs:
         run: |
           cd damai-ticket
           mvn clean package -DskipTests
-          echo "✅ Backend build completed"
 
-      # npm 缓存加速
+      # npm 缓存
       - name: Cache npm packages
         uses: actions/cache@v4
         with:
@@ -51,34 +50,21 @@ jobs:
         with:
           node-version: '20'
 
+      # 构建前端
       - name: Build Frontend
         run: |
           cd damai-ticket-frontend
           npm install --registry https://registry.npmmirror.com
           npm run build
-          echo "✅ Frontend build completed"
 
-      # 上传到 GitHub Pages
-      - name: Upload to GitHub Pages
+      # 部署到 GitHub Pages
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v3
         with:
           path: damai-ticket-frontend/dist
 
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    
-    steps:
       - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/master'
         id: deployment
         uses: actions/deploy-pages@v4
