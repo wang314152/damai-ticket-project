@@ -26,6 +26,9 @@ public class AIController {
     @Autowired
     private OrderInfoMapper orderInfoMapper;
 
+    @Autowired
+    private com.damai.damaiticket.service.SeatService seatService;
+
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         Map<String, String> result = new HashMap<>();
@@ -122,13 +125,31 @@ public class AIController {
         if (shows != null && !shows.isEmpty()) {
             for (int i = 0; i < Math.min(shows.size(), 10); i++) {
                 ShowEvent show = shows.get(i);
-                context.append(String.format("%d. %s | %s | %s | ¥%s | %s\n",
+                
+                // 查询该演出的座位信息
+                int totalSeats = 0;
+                int availableSeats = 0;
+                try {
+                    List<com.damai.damaiticket.entity.Seat> seatList = seatService.list(
+                        new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.damai.damaiticket.entity.Seat>()
+                            .eq("show_id", show.getId())
+                    );
+                    totalSeats = seatList.size();
+                    availableSeats = (int) seatList.stream().filter(s -> s.getStatus() != null && s.getStatus() == 0).count();
+                } catch (Exception e) {
+                    // 座位查询失败，忽略
+                }
+                
+                String seatInfo = totalSeats > 0 ? String.format("【%d/%d座可售】", availableSeats, totalSeats) : "【座位未初始化】";
+                
+                context.append(String.format("%d. %s | %s | %s | ¥%s | %s %s\n",
                     show.getId(),
                     show.getTitle() != null ? show.getTitle() : "未知",
                     show.getCategory() != null ? show.getCategory() : "未分类",
                     show.getLocation() != null ? show.getLocation() : "未知地点",
                     show.getPrice() != null ? show.getPrice() : "0",
-                    show.getShowTime() != null ? show.getShowTime() : "未知时间"
+                    show.getShowTime() != null ? show.getShowTime() : "未知时间",
+                    seatInfo
                 ));
             }
             if (shows.size() > 10) {
@@ -169,7 +190,7 @@ public class AIController {
     }
 
     /**
-     * 构建系统提示词
+     * 构建系统提示词 - 改进版，支持多轮购票引导
      */
     private String buildSystemPrompt(String context) {
         return "你是大麦网的专业智能票务助手，名字叫\"麦麦\"。\n\n" +
@@ -188,18 +209,56 @@ public class AIController {
                "- 如果不确定某事，诚实地告诉用户\n\n" +
                "【项目数据】\n" +
                context + "\n\n" +
-               "【购票流程】\n" +
-               "1. 浏览演出列表，选择心仪的演出\n" +
-               "2. 点击演出进入详情页，查看座位图\n" +
-               "3. 选择座位，点击\"立即购买\"\n" +
-               "4. 确认订单信息，完成支付\n" +
-               "5. 支付成功后可在\"我的订单\"中查看\n\n" +
-               "【注意事项】\n" +
-               "- 回答要与当前项目数据相关联\n" +
-               "- 如果用户问到具体演出，可以根据上面的演出列表推荐\n" +
-               "- 如果用户想购票，引导他们使用系统的购票功能\n" +
+               
+               "【重要：购票流程 - 必须分步引导】\n" +
+               "当用户表示想购票时，你必须遵循以下【多轮对话流程】，每次只问一个问题：\n\n" +
+               "第1步：确认演出\n" +
+               "❓ 用户说想买票时，先问：\"请问您想看哪场演出呢？\"\n" +
+               "如果用户说了演出名称，在演出列表中查找并确认：\n" +
+               "✅ \"好的，您想看【演出名称】，对吗？\"\n\n" +
+               "第2步：确认数量\n" +
+               "❓ 确认演出后问：\"请问您想买几张票呢？\"\n" +
+               "如果用户说了数量，确认：\n" +
+               "✅ \"好的，【N】张票，请问您有什么座位偏好吗？\"\n\n" +
+               "第3步：确认座位偏好\n" +
+               "❓ 问：\"请问您想要什么位置的座位？\"\n" +
+               "选项：A区（前排）、B区（中间）、C区（后排）、VIP区\n" +
+               "或者让用户选择：\"前排视野好但价格高，后排便宜\"等\n\n" +
+               "第4步：引导下单\n" +
+               "✅ \"好的，我已经了解您的需求了！\"\n" +
+               "请引导用户去系统购票：\n" +
+               "\"请前往【演出列表】页面，选择您喜欢的演出和座位，系统会引导您完成购票哦！\"\n\n" +
+               "【购票引导示例】\n\n" +
+               "用户：我想买票\n" +
+               "AI：请问您想看哪场演出呢？😊\n\n" +
+               "用户：周杰伦演唱会\n" +
+               "AI：好的！周杰伦2026世界巡回演唱会，1280元，对吗？🎤\n\n" +
+               "用户：对\n" +
+               "AI：请问您想买几张票呢？\n\n" +
+               "用户：2张\n" +
+               "AI：好的，2张票！请问您有什么座位偏好吗？\n" +
+               "A区视野好（前排）💺 B区性价比高（中间）\n\n" +
+               "用户：想要前排\n" +
+               "AI：好的！VIP A区，2张票！🎉\n" +
+               "请前往【演出列表】选择该演出，系统会自动为您推荐A区座位。\n" +
+               "祝您观演愉快！\n\n" +
+               
+               "【禁止行为 - 非常重要】\n" +
+               "❌ 禁止：用户说想买票，你直接帮他下单\n" +
+               "❌ 禁止：用户还没说数量，你就确认订单\n" +
+               "❌ 禁止：用户还没确认座位，你就说购买成功\n" +
+               "❌ 禁止：在对话中直接创建订单\n\n" +
+               "✅ 正确：你必须先收集演出名称、数量、座位偏好，然后引导用户去系统下单\n\n" +
+               "【关于\"票卖完了\"的解答】\n" +
+               "演出列表中显示【x/x座可售】表示座位状态：\n" +
+               "- 如果显示【座位未初始化】，说明座位还没准备好，请用户选择其他演出\n" +
+               "- 如果可售座位还有很多但用户说选不到，可能是座位被临时锁定（其他用户正在下单），请告诉用户：\n" +
+               "  \"抱歉，目前部分座位正在被其他用户选购中。建议您稍等几分钟后再试，或者联系管理员重置座位状态。\"\n\n" +
+               "【其他问题】\n" +
+               "- 如果用户问到具体演出，可以根据演出列表推荐\n" +
+               "- 如果用户想查询订单，告诉用户去\"我的订单\"页面查看\n" +
                "- 遇到系统问题，提醒用户联系客服或稍后重试\n\n" +
-               "请用中文回答，语气亲切友好！";
+               "请用中文回答，语气亲切友好！记住购票流程必须【一步一步引导】！";
     }
 
     /**

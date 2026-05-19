@@ -1,34 +1,22 @@
-import axios from "axios";
-
-export const isDemoMode = true;
+import axios from 'axios'
 
 const request = axios.create({
-    baseURL: 'http://localhost:8081',
-    timeout: 30000,
-});
+  baseURL: '',
+  timeout: 10000
+})
 
 request.interceptors.response.use(
-    (response) => {
-        const data = response.data;
-        if (data && typeof data === 'object' && 'code' in data) {
-            if (data.code === 0) {
-                return data.data;
-            } else {
-                const error = new Error(data.msg || '请求失败');
-                error.response = data;
-                return Promise.reject(error);
-            }
-        }
-        return data;
-    },
-    (error) => Promise.reject(error)
-);
-
-request.interceptors.request.use((config) => {
-    if (localStorage.getItem("isAdmin") === "1") {
-        config.headers["X-ADMIN"] = "1";
+  response => {
+    const data = response.data
+    if (data.code === 0) {
+      return data.data
     }
-    return config;
-});
+    return Promise.reject(data)
+  },
+  error => {
+    console.error('请求错误:', error)
+    return Promise.reject(error)
+  }
+)
 
-export default request;
+export default request

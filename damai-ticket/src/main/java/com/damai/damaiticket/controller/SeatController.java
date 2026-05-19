@@ -78,4 +78,46 @@ public class SeatController {
         );
         return R.ok(seats);
     }
+
+    /**
+     * 重置座位状态（管理员功能）
+     * 将所有锁定状态(status=2)的座位释放为可用(status=0)
+     */
+    @PostMapping("/reset/{showId}")
+    public R<String> resetSeats(@PathVariable Long showId) {
+        Seat seat = new Seat();
+        seat.setStatus(0);
+        boolean success = seatService.update(seat,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Seat>()
+                        .eq("show_id", showId)
+                        .eq("status", 2)
+        );
+        if (success) {
+            // 查询释放了多少座位
+            long released = seatService.count(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Seat>()
+                            .eq("show_id", showId)
+                            .eq("status", 0)
+            );
+            return R.ok("已释放被锁定的座位");
+        }
+        return R.ok("没有需要释放的座位");
+    }
+
+    /**
+     * 重置所有演出被锁定的座位（管理员功能）
+     */
+    @PostMapping("/resetAll")
+    public R<String> resetAllSeats() {
+        Seat seat = new Seat();
+        seat.setStatus(0);
+        boolean success = seatService.update(seat,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Seat>()
+                        .eq("status", 2)
+        );
+        if (success) {
+            return R.ok("已释放所有被锁定的座位");
+        }
+        return R.ok("没有需要释放的座位");
+    }
 }

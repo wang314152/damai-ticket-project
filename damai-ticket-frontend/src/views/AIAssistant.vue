@@ -104,6 +104,25 @@
 
     <!-- 底部输入区 -->
     <div class="input-section">
+      <!-- 快捷功能下拉菜单 -->
+      <div class="quick-dropdown">
+        <button class="dropdown-toggle" @click="showQuickMenu = !showQuickMenu">
+          <span>💬 快捷功能</span>
+          <span class="dropdown-arrow" :class="{ open: showQuickMenu }">▼</span>
+        </button>
+        <div class="dropdown-menu" v-show="showQuickMenu">
+          <button 
+            v-for="item in quickItems" 
+            :key="item.text"
+            class="dropdown-item"
+            @click="handleQuickAction(item)"
+          >
+            <span class="item-icon">{{ item.icon }}</span>
+            <span class="item-text">{{ item.text }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="input-wrapper">
         <textarea
           v-model="inputText"
@@ -142,13 +161,35 @@ const messagesRef = ref(null);
 const inputRef = ref(null);
 const inputText = ref("");
 const loading = ref(false);
+const showQuickMenu = ref(false);
 
-const quickQuestions = [
-  "有什么热门演唱会推荐？",
-  "如何购买演唱会门票？",
-  "查看我的订单状态",
-  "推荐适合情侣的演出",
+// 快捷功能菜单
+const quickItems = [
+  { icon: "🔥", text: "热门推荐", action: "hot" },
+  { icon: "🎫", text: "帮我买票", action: "buy" },
+  { icon: "📋", text: "我的订单", action: "order" },
+  { icon: "🎭", text: "演出推荐", action: "recommend" },
+  { icon: "❓", text: "购票帮助", action: "help" },
+  { icon: "🎵", text: "演唱会", action: "concert" },
+  { icon: "🎬", text: "话剧歌剧", action: "drama" },
+  { icon: "⚽", text: "体育赛事", action: "sports" },
 ];
+
+// 处理快捷功能点击
+function handleQuickAction(item) {
+  showQuickMenu.value = false;
+  const actionMap = {
+    hot: "有什么热门演出推荐？",
+    buy: "我想买票，请帮我推荐",
+    order: "帮我查询一下我的订单状态",
+    recommend: "推荐一些适合年轻人看的演出",
+    help: "告诉我如何购买演唱会门票",
+    concert: "推荐一些热门演唱会",
+    drama: "推荐一些好看的话剧",
+    sports: "推荐一些体育赛事",
+  };
+  inputText.value = actionMap[item.action] || item.text;
+}
 
 const messages = ref([
   {
